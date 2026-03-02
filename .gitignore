@@ -1,0 +1,6 @@
+.env
+.log
+/data
+*.log
+*.tmp
+/output

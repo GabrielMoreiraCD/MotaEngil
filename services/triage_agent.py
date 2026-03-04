@@ -1,3 +1,7 @@
+''''
+triage_agent.py - Implementação do Agente de Triagem Unificado utilizando abordagem Two-Pass para extração de dados do Formulário CSV e do Memorial Descritivo.
+====================================================================================================================
+'''
 import logging
 import os
 import sys

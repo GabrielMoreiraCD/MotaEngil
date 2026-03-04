@@ -1,0 +1,21 @@
+﻿collection,query_id,query_text,embedding_model,mrr,k,precision_at_k,ndcg_at_k,hit_rate_at_k,relevant_found,total_relevant_gt
+normas_tecnicas_publicas,q001,espessura mínima tubulação carbono pressão interna N-115,sentence-transformers/all-MiniLM-L6-v2,0.0,1,0.0,0.0,0.0,0,2
+normas_tecnicas_publicas,q001,espessura mínima tubulação carbono pressão interna N-115,sentence-transformers/all-MiniLM-L6-v2,0.0,3,0.0,0.0,0.0,0,2
+normas_tecnicas_publicas,q001,espessura mínima tubulação carbono pressão interna N-115,sentence-transformers/all-MiniLM-L6-v2,0.0,5,0.0,0.0,0.0,0,2
+normas_tecnicas_publicas,q001,espessura mínima tubulação carbono pressão interna N-115,sentence-transformers/all-MiniLM-L6-v2,0.0,10,0.0,0.0,0.0,0,2
+normas_tecnicas_publicas,q002,critérios qualificação soldadores N-279 ensaios não destrutivos,sentence-transformers/all-MiniLM-L6-v2,0.0,1,0.0,0.0,0.0,0,1
+normas_tecnicas_publicas,q002,critérios qualificação soldadores N-279 ensaios não destrutivos,sentence-transformers/all-MiniLM-L6-v2,0.0,3,0.0,0.0,0.0,0,1
+normas_tecnicas_publicas,q002,critérios qualificação soldadores N-279 ensaios não destrutivos,sentence-transformers/all-MiniLM-L6-v2,0.0,5,0.0,0.0,0.0,0,1
+normas_tecnicas_publicas,q002,critérios qualificação soldadores N-279 ensaios não destrutivos,sentence-transformers/all-MiniLM-L6-v2,0.0,10,0.0,0.0,0.0,0,1
+normas_tecnicas_publicas,q003,suporte tipo guia tubulação offshore material ASTM A36 carga axial,sentence-transformers/all-MiniLM-L6-v2,0.0,1,0.0,0.0,0.0,0,3
+normas_tecnicas_publicas,q003,suporte tipo guia tubulação offshore material ASTM A36 carga axial,sentence-transformers/all-MiniLM-L6-v2,0.0,3,0.0,0.0,0.0,0,3
+normas_tecnicas_publicas,q003,suporte tipo guia tubulação offshore material ASTM A36 carga axial,sentence-transformers/all-MiniLM-L6-v2,0.0,5,0.0,0.0,0.0,0,3
+normas_tecnicas_publicas,q003,suporte tipo guia tubulação offshore material ASTM A36 carga axial,sentence-transformers/all-MiniLM-L6-v2,0.0,10,0.0,0.0,0.0,0,3
+normas_tecnicas_publicas,q004,TIE-IN procedimento conexão tubulação existente flanges,sentence-transformers/all-MiniLM-L6-v2,0.0,1,0.0,0.0,0.0,0,2
+normas_tecnicas_publicas,q004,TIE-IN procedimento conexão tubulação existente flanges,sentence-transformers/all-MiniLM-L6-v2,0.0,3,0.0,0.0,0.0,0,2
+normas_tecnicas_publicas,q004,TIE-IN procedimento conexão tubulação existente flanges,sentence-transformers/all-MiniLM-L6-v2,0.0,5,0.0,0.0,0.0,0,2
+normas_tecnicas_publicas,q004,TIE-IN procedimento conexão tubulação existente flanges,sentence-transformers/all-MiniLM-L6-v2,0.0,10,0.0,0.0,0.0,0,2
+normas_tecnicas_publicas,q005,estimativa homem-hora HH adequação tubulação 6 polegadas P5,sentence-transformers/all-MiniLM-L6-v2,0.0,1,0.0,0.0,0.0,0,1
+normas_tecnicas_publicas,q005,estimativa homem-hora HH adequação tubulação 6 polegadas P5,sentence-transformers/all-MiniLM-L6-v2,0.0,3,0.0,0.0,0.0,0,1
+normas_tecnicas_publicas,q005,estimativa homem-hora HH adequação tubulação 6 polegadas P5,sentence-transformers/all-MiniLM-L6-v2,0.0,5,0.0,0.0,0.0,0,1
+normas_tecnicas_publicas,q005,estimativa homem-hora HH adequação tubulação 6 polegadas P5,sentence-transformers/all-MiniLM-L6-v2,0.0,10,0.0,0.0,0.0,0,1

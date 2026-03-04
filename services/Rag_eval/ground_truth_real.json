@@ -1,0 +1,44 @@
+[
+  {
+    "query_id": "q001",
+    "query_text": "espessura mínima tubulação carbono linha 3/4 polegadas pressão N-115",
+    "relevant_doc_ids": [],
+    "metadata_filter": null
+  },
+  {
+    "query_id": "q002",
+    "query_text": "TIE-IN procedimento conexão tubulação existente linha gás exportação",
+    "relevant_doc_ids": [],
+    "metadata_filter": null
+  },
+  {
+    "query_id": "q003",
+    "query_text": "fabricação montagem spool linha gás combustível alta pressão isométrico",
+    "relevant_doc_ids": [],
+    "metadata_filter": null
+  },
+  {
+    "query_id": "q004",
+    "query_text": "suporte tubulação offshore carga axial ASTM A36 fixação estrutural",
+    "relevant_doc_ids": [],
+    "metadata_filter": null
+  },
+  {
+    "query_id": "q005",
+    "query_text": "estimativa homem-hora HH tubulação 3/4 polegadas fabricação montagem offshore",
+    "relevant_doc_ids": [],
+    "metadata_filter": null
+  },
+  {
+    "query_id": "q006",
+    "query_text": "painel amostrador gás instalação isométrico IS-3010 tubulação",
+    "relevant_doc_ids": [],
+    "metadata_filter": null
+  },
+  {
+    "query_id": "q007",
+    "query_text": "N-858 requisitos preservação pintura conexões tubulação offshore",
+    "relevant_doc_ids": [],
+    "metadata_filter": null
+  }
+]

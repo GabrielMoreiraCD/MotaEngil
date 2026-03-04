@@ -1,0 +1,53 @@
+[
+  {
+    "query_id": "q001",
+    "query_text": "espessura mínima tubulação carbono pressão interna N-115",
+    "relevant_doc_ids": [
+      "n115_secao4_chunk_12",
+      "n115_secao4_chunk_13"
+    ],
+    "metadata_filter": {
+      "norma": "N-115",
+      "tipo": "texto"
+    }
+  },
+  {
+    "query_id": "q002",
+    "query_text": "critérios qualificação soldadores N-279 ensaios não destrutivos",
+    "relevant_doc_ids": [
+      "n279_secao6_chunk_05"
+    ],
+    "metadata_filter": {
+      "norma": "N-279"
+    }
+  },
+  {
+    "query_id": "q003",
+    "query_text": "suporte tipo guia tubulação offshore material ASTM A36 carga axial",
+    "relevant_doc_ids": [
+      "catalogo_suportes_chunk_22",
+      "catalogo_suportes_chunk_23",
+      "catalogo_suportes_chunk_24"
+    ],
+    "metadata_filter": null
+  },
+  {
+    "query_id": "q004",
+    "query_text": "TIE-IN procedimento conexão tubulação existente flanges",
+    "relevant_doc_ids": [
+      "proc_tiein_chunk_01",
+      "proc_tiein_chunk_02"
+    ],
+    "metadata_filter": {
+      "tipo": "procedimento"
+    }
+  },
+  {
+    "query_id": "q005",
+    "query_text": "estimativa homem-hora HH adequação tubulação 6 polegadas P5",
+    "relevant_doc_ids": [
+      "tabela_hh_chunk_08"
+    ],
+    "metadata_filter": null
+  }
+]

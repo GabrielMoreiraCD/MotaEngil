@@ -3,4 +3,5 @@
 /data
 *.log
 *.tmp
-/outputgit 
+/outputgit
+/core/_pycache__/* 

@@ -16,4 +16,11 @@ class Config:
     LLM_MODEL = os.getenv("LLM_MODEL", "llama3:latest")
     EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
 
+    # ── Pipeline BOM (Etapas 3-5) ─────────────────────────────────────────────
+    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+    USE_CLAUDE = os.getenv("USE_CLAUDE", "true").lower() == "true"
+    CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
+    COLLECTION_NORMAS = os.getenv("COLLECTION_NORMAS", "normas_tecnicas_publicas_v2")
+    COLLECTION_MATERIAIS = os.getenv("COLLECTION_MATERIAIS", "catalogo_materiais_v1")
+
 config = Config()

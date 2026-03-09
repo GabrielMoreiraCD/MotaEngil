@@ -86,18 +86,21 @@ REPORT_FILE     = Path("ingest_materials_report.json")
 COLUMN_ALIASES: dict[str, list[str]] = {
     # ── Identificação ─────────────────────────────────────────────────────────
     "codigo": [
+        "objeto",           # Petrobras XLSX: coluna primária de identificação (ex: 10.047.855)
         "cod_material", "cod_mat", "codigo_material", "código_material",
         "codigo", "código", "cod.", "part_number", "part number",
         "referencia", "referência", "ref.", "num_item", "numero_item",
         "n_item", "item",
     ],
     "descricao": [
+        "nome_padronizado", "nome padronizado",  # Petrobras XLSX: "Nome padronizado" / "Nome padronizado (FM)"
         "denominacao", "denominação", "descricao_completa", "descrição_completa",
         "descrição", "descricao", "description", "desc.", "denominac",
         "nome_material", "nome", "produto", "especif_resumida",
         "designacao", "designação",
     ],
     "especificacao": [
+        "padrao_construtivo", "padrão construtivo",  # Petrobras XLSX: "Padrão construtivo"
         "especificacao_tecnica", "especificação_técnica",
         "especificacao", "especificação", "especificacoes", "especificações",
         "spec", "norma_aplicavel", "norma_aplicável", "norma_fabricacao",

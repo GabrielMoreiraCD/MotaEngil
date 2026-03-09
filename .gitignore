@@ -4,4 +4,3 @@
 *.log
 *.tmp
 /outputgit
-/core/_pycache__/* 

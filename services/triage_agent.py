@@ -13,9 +13,13 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from langchain_core.prompts import PromptTemplate
 from core.models import get_llm
+from core.config import config
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("TriageAgent")
+
+# Regex para extrair normas N-XXXX do texto bruto (fallback quando LLM falha)
+RE_NORMA_PETROBRAS = re.compile(r'\bN[-‐](\d{3,4})\b')
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PASS 1: Skeleton focado APENAS no Formulário CSV
@@ -59,8 +63,23 @@ SKELETON_MD = """{
 
 
 class UnifiedTriageAgent:
-    def __init__(self):
+    def __init__(self, use_claude: bool = True):
         logger.info("Inicializando Agente de Triagem Unificado (Two-Pass)...")
+
+        # Claude disponível apenas se: caller quer Claude E config permite E chave existe
+        self.use_claude = use_claude and config.USE_CLAUDE and bool(config.ANTHROPIC_API_KEY)
+        if self.use_claude:
+            try:
+                from core.models import get_claude_client
+                self.claude = get_claude_client()
+                logger.info(f"Triage usando Claude ({config.CLAUDE_MODEL}) para extração estruturada.")
+            except Exception as e:
+                logger.warning(f"Claude não disponível ({e}). Fallback para Llama3.")
+                self.use_claude = False
+                self.claude = None
+        else:
+            self.claude = None
+
         self.llm = get_llm()
         self.prompt_csv = self._build_prompt_csv()
         self.prompt_md = self._build_prompt_md()
@@ -135,6 +154,41 @@ class UnifiedTriageAgent:
             except UnicodeDecodeError:
                 continue
         raise ValueError(f"Não foi possível decodificar: {file_path}")
+
+    def _extract_text_from_file(self, file_path: Path) -> str:
+        """
+        Extrai texto de qualquer arquivo suportado.
+        PDFs → usa PyMuPDF (fitz) para extração precisa do texto embutido.
+        Demais extensões (.csv, .txt, .md) → usa _read_file() com detecção de encoding.
+        """
+        if file_path.suffix.lower() == ".pdf":
+            try:
+                import fitz  # PyMuPDF
+                doc = fitz.open(str(file_path))
+                pages_text = []
+                for page in doc:
+                    pages_text.append(page.get_text())
+                doc.close()
+                text = "\n".join(pages_text)
+                logger.info(f"  PDF extraído via PyMuPDF: {len(text)} caracteres de {len(pages_text)} páginas.")
+                return text
+            except ImportError:
+                logger.error("PyMuPDF (fitz) não instalado. Execute: pip install pymupdf>=1.24.0")
+                raise
+            except Exception as e:
+                logger.error(f"Falha ao extrair PDF '{file_path.name}': {e}")
+                raise
+        return self._read_file(file_path)
+
+    def _call_llm_claude(self, system_prompt: str, user_prompt: str) -> str:
+        """Chama Claude API com system + user prompt. Retorna texto da resposta."""
+        response = self.claude.messages.create(
+            model=config.CLAUDE_MODEL,
+            max_tokens=4096,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+        return response.content[0].text
 
     # ── Extrator JSON robusto ──────────────────────────────────────────────────
 
@@ -211,13 +265,30 @@ class UnifiedTriageAgent:
         if not md_file.exists():
             logger.error(f"MD não encontrado: {md_file}"); return {}
 
-        cleaned_csv = self._clean_csv_text(self._read_file(csv_file))
-        cleaned_md  = self._clean_md_text(self._read_file(md_file))
+        # Extração de texto — PDF via fitz, demais via read_file
+        cleaned_csv = self._clean_csv_text(self._extract_text_from_file(csv_file))
+        cleaned_md  = self._clean_md_text(self._extract_text_from_file(md_file))
+
+        llm_label = "Claude" if self.use_claude else "Llama3"
 
         # ── PASS 1: extração do formulário ─────────────────────────────────────
-        logger.info("Pass 1/2 — Extraindo dados do Formulário CSV...")
+        logger.info(f"Pass 1/2 — Extraindo dados do Formulário CSV via {llm_label}...")
         try:
-            raw_csv = (self.prompt_csv | self.llm).invoke({"texto_formulario": cleaned_csv})
+            if self.use_claude:
+                system_p1 = (
+                    "Você é um extrator de dados. Leia o formulário e preencha o JSON.\n"
+                    "REGRAS:\n"
+                    "- Substitua '???' pelo valor real. Se não existir, use null ou [].\n"
+                    "- 'id_servico': código no formato SS-XX, LC-XXX ou similar.\n"
+                    "- 'servico_critico': 'Sim' se [RESPOSTA: SIM], senão 'Não'.\n"
+                    "- 'tarefas_execucao': ações listadas no item 4.1.\n"
+                    "- 'notas_e_restricoes': apenas as linhas sob 'NOTAS:' no item 4.1.\n"
+                    "- Retorne APENAS JSON válido. Sem texto antes ou depois."
+                )
+                user_p1 = f"<FORMULARIO>\n{cleaned_csv}\n</FORMULARIO>\n\nJSON preenchido:\n{SKELETON_CSV}"
+                raw_csv = self._call_llm_claude(system_p1, user_p1)
+            else:
+                raw_csv = (self.prompt_csv | self.llm).invoke({"texto_formulario": cleaned_csv})
             data_csv = self._sanitize(self._extract_json_robust(raw_csv, "CSV"))
             logger.info(f"Pass 1 concluído. Campos extraídos: {list(data_csv.keys())}")
         except Exception as e:
@@ -225,17 +296,76 @@ class UnifiedTriageAgent:
             data_csv = {}
 
         # ── PASS 2: extração do Memorial Descritivo ────────────────────────────
-        logger.info("Pass 2/2 — Extraindo dados do Memorial Descritivo...")
+        logger.info(f"Pass 2/2 — Extraindo dados do Memorial Descritivo via {llm_label}...")
         try:
-            raw_md = (self.prompt_md | self.llm).invoke({"texto_md": cleaned_md})
+            if self.use_claude:
+                system_p2 = (
+                    "Você é um extrator de dados de engenharia offshore Petrobras.\n"
+                    "REGRAS:\n"
+                    "- Substitua '???' pelo valor real. Se não existir, use null ou [].\n"
+                    "- 'normas_petrobras_aplicaveis': APENAS códigos N-XXX citados no texto (ex: N-279, N-115).\n"
+                    "  Se não houver normas explícitas no texto, retorne [].\n"
+                    "- 'detalhamento_por_disciplina': um objeto por sistema/disciplina no ESCOPO.\n"
+                    "- Retorne APENAS JSON válido. Sem texto antes ou depois."
+                )
+                user_p2 = f"<MEMORIAL_DESCRITIVO>\n{cleaned_md}\n</MEMORIAL_DESCRITIVO>\n\nJSON preenchido:\n{SKELETON_MD}"
+                raw_md = self._call_llm_claude(system_p2, user_p2)
+            else:
+                raw_md = (self.prompt_md | self.llm).invoke({"texto_md": cleaned_md})
             data_md = self._sanitize(self._extract_json_robust(raw_md, "MD"))
             logger.info(f"Pass 2 concluído. Normas: {data_md.get('normas_petrobras_aplicaveis', [])}")
         except Exception as e:
             logger.error(f"Falha no Pass 2: {e}", exc_info=True)
             data_md = {}
 
+        # ── Regex: sempre extrai N-XXXX do texto e merge com resultado LLM ──
+        # O LLM pode extrair normas ABNT/NBR que não existem no Qdrant — filtramos para manter
+        # apenas normas Petrobras no formato N-XXXX (ex: N-0115, N-133) encontradas no texto.
+        RE_PETROBRAS_STRICT = re.compile(r'\bN-(\d{3,4})\b')
+        normas_llm_raw = data_md.get("normas_petrobras_aplicaveis") or []
+        # Filtra LLM: mantém apenas strings que combinam com padrão N-XXXX Petrobras, normaliza
+        def _normalize_norma(n: str) -> str:
+            m = RE_PETROBRAS_STRICT.match(n)
+            return f"N-{m.group(1).zfill(4)}" if m else n
+        normas_llm_filtradas = [_normalize_norma(n) for n in normas_llm_raw if RE_PETROBRAS_STRICT.match(n)]
+        if len(normas_llm_filtradas) < len(normas_llm_raw):
+            descartadas = set(normas_llm_raw) - set(normas_llm_filtradas)
+            logger.info(f"  Normas descartadas (não-Petrobras): {sorted(descartadas)}")
+        # Regex direto no texto limpo para capturar N-XXXX (normaliza 3 dígitos para 4)
+        normas_regex = [f"N-{m.zfill(4)}" for m in RE_NORMA_PETROBRAS.findall(cleaned_md)]
+        normas_regex_dedup = list(dict.fromkeys(normas_regex))
+        # Merge: LLM filtradas + regex, sem duplicatas
+        normas_merged = list(dict.fromkeys(normas_llm_filtradas + normas_regex_dedup))
+        if normas_merged != normas_llm_raw:
+            logger.info(f"  Normas finais (regex+LLM): {normas_merged}")
+        data_md["normas_petrobras_aplicaveis"] = normas_merged
+
+        # ── Regex N-XXXX também no texto do CSV (documentos_referencia pode citar normas) ──
+        normas_regex_csv = [f"N-{m.zfill(4)}" for m in RE_NORMA_PETROBRAS.findall(cleaned_csv)]
+        normas_merged_final = list(dict.fromkeys(normas_merged + normas_regex_csv))
+        if normas_merged_final != normas_merged:
+            logger.info(f"  Normas adicionais do CSV: {list(set(normas_merged_final) - set(normas_merged))}")
+        data_md["normas_petrobras_aplicaveis"] = normas_merged_final
+
         # ── MERGE: une os dois dicionários ─────────────────────────────────────
         resultado = {**data_csv, **data_md}
+
+        # ── Fallback: id_servico inválido quando LLM confunde com tag da linha ──
+        tag = resultado.get("tag_linha_principal") or ""
+        id_svc = resultado.get("id_servico") or ""
+        if not id_svc or id_svc == tag or id_svc in ("???", "null", "LP-XXX"):
+            # Tenta extrair de titulo_servico (ex: "SS-93", "LC-029")
+            RE_SERVICE_ID = re.compile(r'\b([A-Z]{1,3}-\d{1,5})\b')
+            titulo = resultado.get("titulo_servico") or ""
+            m_svc = RE_SERVICE_ID.search(titulo)
+            if m_svc and m_svc.group(1) != tag:
+                resultado["id_servico"] = m_svc.group(1)
+                logger.info(f"  id_servico corrigido via titulo_servico: {resultado['id_servico']}")
+            else:
+                # Usa o stem do arquivo CSV como fallback final
+                resultado["id_servico"] = csv_file.stem
+                logger.info(f"  id_servico fallback para nome do arquivo: {resultado['id_servico']}")
+
         logger.info("✓ Merge concluído. Triagem finalizada.")
         return resultado
 

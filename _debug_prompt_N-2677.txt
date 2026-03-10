@@ -1,0 +1,161 @@
+=== SYSTEM ===
+Você é engenheiro de materiais especialista em normas técnicas Petrobras.
+Sua tarefa é identificar materiais, consumíveis e insumos NECESSÁRIOS para o serviço descrito, com base nos trechos de norma fornecidos.
+
+REGRAS:
+1. Identifique materiais mencionados ou REQUERIDOS pelos procedimentos descritos nos trechos.
+2. Inclua: eletrodos, arames de solda, tubos, flanges, juntas, parafusos, tintas, abrasivos,    reagentes END, EPIs de soldagem, gases de proteção.
+3. Para soldagem: identifique classificação AWS, processo (SMAW/GTAW/FCAW/GMAW).
+4. Para END: identifique consumíveis (penetrante, revelador, removedor).
+5. Para pintura: identifique tipo de tinta, abrasivo para jateamento, primer.
+6. Se o texto menciona um procedimento que REQUER um material específico, inclua esse material.
+7. Use null para campos não encontrados. NÃO invente códigos ASTM/AWS que não aparecem no texto.
+8. Retorne APENAS JSON válido (lista de objetos). Nenhum texto adicional.
+9. Se não houver materiais identificáveis nos trechos, retorne [].
+
+=== USER ===
+SERVIÇO: Parada - LP448 - 2"-F-B10S-200 Realizar preenchimento por solda | TAG: 2”-F-B10S-200 | Piping: não identificada | NPS: não identificado"
+TAREFAS: Isolar área; Pesquisar O2; Inibição de sensores; Medir explosividade; Gases tóxicos
+
+TRECHOS DA NORMA [N-2677]:
+[Seção 5.2.2.6]
+TABELA A-1 - Poder de Cobertura para o Produto Pronto para Aplicação
+(Criptômetro de Pfund - Placa nº 7) Cores
+Código Norma PETROBRAS N-1219
+Valores Máximo
+(mm)
+Alaranjado-Segurança
+1867
+Amarelo-Ouro
+2287 Amarelo-PETROBRAS
+2386
+20 Amarelo-Segurança
+2586
+Vermelho-Segurança
+1547 Azul-Pastel
+4882
+Branco
+0095
+Cinza-Claro
+0065
+Cinza-Gelo
+0080 Creme-Canalizações
+2273
+15
+Creme-Claro
+2392 Verde-PETROBRAS
+3355
+Verde-Segurança
+3263
+Verde-Pastel
+3582 Azul-PETROBRAS
+5134
+Azul-Segurança
+4845
+Cinza-Escuro
+0035
+10
+Marrom-Canalizações
+1822 Óxido de Ferro
+1733
+Preto
+0010
+
+---
+[Seção 2]
+2 Referências Normativas Os documentos relacionados a seguir são indispensáveis à aplicação deste documento. Para
+referências datadas, aplicam-se somente as edições citadas. Para referências não datadas,
+aplicam-se as edições mais recentes dos referidos documentos. PETROBRAS N-13 - Requisitos Técnicos para Serviços de Pintura; PETROBRAS N-1219 - Cores; PETROBRAS N-2680 - Tinta Epóxi, Sem Solventes, Tolerante a Superfícies Molhadas; ABNT NBR 8094 - Material Metálico Revestido e Não Revestido - Corrosão por Exposição
+à Névoa Salina; ABNT NBR 8096 - Material Metálico Revestido e Não-Revestido - Corrosão por Exposição
+ao Dióxido de Enxofre; ABNT NBR 9676 - Tintas - Determinação do Poder de Cobertura (Opacidade); ABNT NBR 11617 - Tintas - Determinação do volume dos sólidos por meio do disco de
+aço; ABNT NBR 12103 - Tintas - Determinação do Descaimento; ABNT NBR 15442-
+Pintura
+Industrial
+-
+Inspeção
+de
+Recebimento
+de
+Recipientes
+Fechados; ABNT NBR 15742 - Tintas e Vernizes - Determinação de Vida Útil; ABNT NBR 15877 - Pintura Industrial - Ensaio de Aderência por Tração; ISO 8501-1- Preparation of Steel Substrates Before Application of Paints and Related
+Products; ASTM D 523 - Standard Test Method for Specular Gloss;
+
+---
+[Seção 2]
+2 Referências Normativas Os documentos relacionados a seguir são indispensáveis à aplicação deste documento. Para
+referências datadas, aplicam-se somente as edições citadas. Para referências não datadas,
+aplicam-se as edições mais recentes dos referidos documentos. PETROBRAS N-13 - Requisitos Técnicos para Serviços de Pintura; PETROBRAS N-1219 - Cores; PETROBRAS N-2680 - Tinta Epóxi, Sem Solventes, Tolerante a Superfícies Molhadas; ABNT NBR 8094 - Material Metálico Revestido e Não Revestido - Corrosão por Exposição
+à Névoa Salina; ABNT NBR 8096 - Material Metálico Revestido e Não-Revestido - Corrosão por Exposição
+ao Dióxido de Enxofre; ABNT NBR 9676 - Tintas - Determinação do Poder de Cobertura (Opacidade); ABNT NBR 12103 - Tintas - Determinação do Descaimento; ABNT NBR 15442-
+Pintura
+Industrial
+-
+Inspeção
+de
+Recebimento
+de
+Recipientes
+Fechados; ABNT NBR 15742 - Tintas e Vernizes - Determinação de Vida Útil; ABNT NBR 15877 - Pintura Industrial - Ensaio de Aderência por Tração; ISO 3233-1- Paints and Varnishes - Determination of the Percentage Volume of Non-Volatile
+Matter - Part 1: Method Using a Coated Test Panel to Determine Non-Volatile Matter and to
+Determine Dry Film Density by the Archimedes Principle; ISO 3251 - Paints, Varnishes and Plastics - Determination of Non-Volatile-Matter Content; ISO 8501-1- Preparation of Steel Substrates Before Application of Paints and Related
+Products; ISO 16862- Paints and Varnishes - Evaluation of Sag Resistance; ASTM D 523 - Standard Test Method for Specular Gloss;
+
+---
+[Seção 3.6]
+3.6 Marcação Os recipientes devem trazer no rótulo ou em seu corpo, no mínimo, as seguintes informações: a) norma PETROBRAS N-2677;
+b) tinta de poliuretano acrílico;
+c) identificação dos componentes: A, B ou C;
+d) diluente a utilizar;
+e) quantidade contida no recipiente, em litros e em kg;
+f) nome e endereço do fabricante;
+g) número ou sinal identificador do lote de fabricação;
+h) data da validade de utilização do produto;
+i)
+proporção de mistura em massa e volume.
+
+---
+[Seção 1.1]
+1.1 Esta Norma fixa as características verificáveis em laboratório, exigíveis no recebimento de tinta
+de poliuretano acrílico alifático, fornecido em 2 componentes: componente A, contendo resina acrílica
+poliidroxilada e componente B, contendo o agente de cura à base de poliisocianato alifático. NOTA
+Na cor Alumínio (0170 da PETROBRAS N-1219), a tinta pode ser fornecida em 3
+componentes, sendo o componente C constituído por pasta de alumínio do tipo “leafing”
+(folheamento).
+
+---
+[Seção 1.1]
+1.1 Esta Norma fixa as características verificáveis em laboratório, exigíveis no recebimento de tinta
+de poliuretano acrílico alifático, fornecido em 2 componentes: componente A, contendo resina acrílica
+poliidroxilada e componente B, contendo o agente de cura à base de poliisocianato alifático. NOTA
+Na cor Alumínio (0170 da PETROBRAS N-1219), a tinta pode ser fornecida em 3
+componentes, sendo o
+(folheamento).
+
+---
+[Seção 4.2]
+4.2 Requisitos do Produto Pronto para Aplicação
+
+---
+[Seção 3.2.2]
+3.2.2 Na vedação das embalagens não deve ser utilizado material passível de causar degradação ou
+contaminação da tinta.
+
+---
+[Seção 1.3]
+1.3 Esta Norma contém Requisitos Técnicos e Práticas Recomendadas
+
+---
+[Seção 1.3]
+1.3 Esta Norma contém Requisitos Técnicos e Práticas Recomendadas
+
+---
+[Seção 5.2.2.6]
+ÍNDICE DE REVISÕES REV. A Partes Atingidas
+Descrição da Alteração Todas
+Revisadas REV. B Partes Atingidas
+Descrição da Alteração Todas
+Revisadas
+
+
+Identifique materiais e consumíveis. Retorne JSON:
+[{"tipo_material":"...","descricao_tecnica":"...","norma_origem":"...","secao_norma":"...","confianca":0.9}]

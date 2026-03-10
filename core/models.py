@@ -1,43 +1,56 @@
-'''models.py — Modelos de Embeddings e LLM para o Pipeline RAG
+"""models.py — Modelos de Embeddings e LLM para o Pipeline RAG
 ==========================================================================
-Este módulo define os modelos de embeddings e LLM utilizados no pipeline RAG da Petrobras, utilizando as bibliotecas HuggingFace e Ollama.'''
+Usa Ollama local (qwen2.5:7b-instruct-q4_K_M) para todas as chamadas LLM.
+Suporta system/user prompts via ollama.chat() para extração estruturada.
+"""
+import logging
 import torch
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.llms import Ollama
+from langchain_community.llms import Ollama as OllamaLangchain
 from core.config import config
+
+log = logging.getLogger(__name__)
+
 
 def get_embeddings() -> HuggingFaceEmbeddings:
     model_kwargs = {'device': 'cuda' if torch.cuda.is_available() else 'cpu'}
     encode_kwargs = {'normalize_embeddings': True}
-
     return HuggingFaceEmbeddings(
         model_name=config.EMBEDDING_MODEL,
         model_kwargs=model_kwargs,
-        encode_kwargs=encode_kwargs
+        encode_kwargs=encode_kwargs,
     )
 
-def get_llm() -> Ollama:
-    return Ollama(
-        model=config.LLM_MODEL,
-        temperature=0.0
-    )
 
-def get_claude_client():
+def get_llm() -> OllamaLangchain:
+    """LangChain Ollama wrapper — mantido para backward compat (rag_engine.py)."""
+    return OllamaLangchain(model=config.OLLAMA_MODEL, temperature=0.0)
+
+
+def ollama_chat(system_prompt: str, user_prompt: str, temperature: float | None = None) -> str:
     """
-    Retorna cliente Anthropic para uso nos agentes que requerem extração estruturada
-    de alta fidelidade (ex: NormasConsultationAgent na Etapa 3).
-    Requer ANTHROPIC_API_KEY no .env.
+    Chama Ollama local via ollama.chat() com system + user prompts.
+    Usa qwen2.5:7b-instruct-q4_K_M por padrão (configurável via OLLAMA_MODEL).
+    Retorna o texto da resposta.
     """
+    import ollama
+
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": user_prompt})
+
     try:
-        import anthropic
-    except ImportError as e:
-        raise ImportError(
-            "Pacote 'anthropic' não encontrado. Execute: pip install anthropic>=0.28.0"
-        ) from e
-
-    if not config.ANTHROPIC_API_KEY:
-        raise ValueError(
-            "ANTHROPIC_API_KEY não configurada. Adicione ao .env ou use --use-llama para fallback local."
+        response = ollama.chat(
+            model=config.OLLAMA_MODEL,
+            messages=messages,
+            options={
+                "temperature": temperature if temperature is not None else config.OLLAMA_TEMPERATURE,
+                "num_predict": config.OLLAMA_NUM_PREDICT,
+                "num_ctx": config.OLLAMA_NUM_CTX,
+            },
         )
-
-    return anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+        return response["message"]["content"]
+    except Exception as e:
+        log.error(f"Erro ao chamar Ollama ({config.OLLAMA_MODEL}): {e}")
+        raise

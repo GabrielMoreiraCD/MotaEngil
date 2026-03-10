@@ -96,8 +96,12 @@ def run_pipeline(
     csv_path: str,
     md_path: str | None = None,
     md_dir: str | None = None,
+    ieis_path: str | None = None,
+    ebp_path: str | None = None,
+    isometrico_paths: list[str] | None = None,
     output_dir: str = "Data/etapa_bom_output",
-    use_claude: bool = True,
+    use_claude: bool = False,
+    use_gemini: bool = True,
     export_format: str = "xlsx",
     resume_from: int = 2,
     dry_run: bool = False,
@@ -131,10 +135,19 @@ def run_pipeline(
     log.info("=" * 70)
     log.info("PIPELINE BOM — GERAÇÃO AUTOMÁTICA DE LISTA DE MATERIAIS")
     log.info("=" * 70)
+    from core.config import config as _cfg
+    _llm_label = (
+        f"Gemini ({_cfg.GEMINI_MODEL})" if _cfg.USE_GEMINI
+        else (f"Claude ({_cfg.CLAUDE_MODEL})" if use_claude and _cfg.USE_CLAUDE
+              else "Llama3 (local)")
+    )
     log.info(f"  CSV:          {csv_path}")
     log.info(f"  MD:           {resolved_md}")
+    log.info(f"  IEIS:         {ieis_path or '(não fornecido)'}")
+    log.info(f"  EBP:          {ebp_path or '(não fornecido)'}")
+    log.info(f"  Isométrico(s):{' | '.join(isometrico_paths) if isometrico_paths else '(não fornecido)'}")
     log.info(f"  Output:       {output_dir}")
-    log.info(f"  LLM Etapa 3:  {'Claude (' + __import__('core.config', fromlist=['config']).config.CLAUDE_MODEL + ')' if use_claude else 'Llama3 (local)'}")
+    log.info(f"  LLM:          {_llm_label}")
     log.info(f"  Formato:      {export_format}")
     log.info(f"  Retomar de:   Etapa {resume_from}")
     log.info("=" * 70)
@@ -143,13 +156,36 @@ def run_pipeline(
     from core.schemas import EscopoTriagemUnificado
 
     if resume_from <= 2 or not f_triage.exists():
-        log.info("\n[ETAPA 2] Extração de escopo via Triage Agent...")
+        log.info("\n[ETAPA 2] Extração de escopo via Triage Agent (Four-Pass)...")
         from services.triage_agent import UnifiedTriageAgent
-        agent = UnifiedTriageAgent(use_claude=use_claude)
+        agent = UnifiedTriageAgent()
         triage_raw = agent.process_project_files(
             csv_path=csv_path,
             md_path=resolved_md,
+            ieis_path=ieis_path,
+            ebp_path=ebp_path,
         )
+
+        # Pass 5: Leitura visual de isométricos (Qwen2.5-VL) — se fornecidos
+        if isometrico_paths:
+            from core.config import config as _cfg2
+            if _cfg2.HF_TOKEN:
+                log.info(f"\n[ETAPA 2 / Pass 5] Lendo {len(isometrico_paths)} isométrico(s) via Qwen2.5-VL...")
+                from services.isometric_reader import IsometricReader
+                reader = IsometricReader(hf_token=_cfg2.HF_TOKEN)
+                context = {
+                    "tag_linha": triage_raw.get("tag_linha_principal", ""),
+                    "piping_class": triage_raw.get("piping_class_referencia", ""),
+                }
+                iso_specs = reader.extract_specs_batch(isometrico_paths, context)
+                if iso_specs:
+                    triage_raw["isometric_specs"] = [s.model_dump() for s in iso_specs]
+                    log.info(f"  Pass 5 concluído: {len(iso_specs)} specs do isométrico adicionadas.")
+                else:
+                    log.warning("  Pass 5: Nenhuma spec extraída do isométrico.")
+            else:
+                log.warning("  Pass 5 ignorado: HF_TOKEN não configurado no .env")
+
         _save_json(triage_raw, f_triage)
         log.info(f"  Triage concluído. Salvo em: {f_triage}")
     else:
@@ -161,38 +197,59 @@ def run_pipeline(
         escopo = EscopoTriagemUnificado.model_validate(triage_raw)
     except Exception as e:
         log.warning(f"Validação Pydantic falhou ({e}). Usando escopo com campos padrão.")
-        # Garante que pelo menos o que foi extraído seja preservado
         escopo = EscopoTriagemUnificado.model_validate({
             k: v for k, v in (triage_raw or {}).items()
             if v is not None and v != [] and v != ""
         })
 
+    # ── DIAGNÓSTICO: log do escopo validado ──────────────────────────────────
     log.info(f"  Serviço: {escopo.id_servico} | {escopo.titulo_servico}")
+    log.info(f"  Plataforma: {escopo.plataforma} | Tag: {escopo.tag_linha_principal}")
+    log.info(f"  LP/ZE: {escopo.numero_ze}")
     log.info(f"  Normas aplicáveis: {escopo.normas_petrobras_aplicaveis}")
+    ieis = getattr(escopo, "especificacoes_soldagem", None)
+    if ieis:
+        log.info(f"  IEIS: eletrodo={getattr(ieis,'metal_adicao',None)} | NDT={getattr(ieis,'ndt_requerido',[])}")
+    spool_list = getattr(escopo, "spool_list", None) or []
+    log.info(f"  Spools: {len(spool_list)} | Isométrico specs: {len(getattr(escopo,'isometric_specs',[]))}")
 
     # ─── ETAPA 3: Consulta de Normas ─────────────────────────────────────────
     from core.schemas import NormasConsultaResult
 
     if resume_from <= 3 or not f_normas.exists():
-        log.info("\n[ETAPA 3] Consultando normas técnicas no Qdrant...")
+        log.info("\n[ETAPA 3] Consultando normas técnicas no Qdrant + injeção direta IEIS/EBP...")
         from services.normas_agent import NormasConsultationAgent
-        normas_agent = NormasConsultationAgent(use_claude=use_claude)
+        normas_agent = NormasConsultationAgent()
         normas_result = normas_agent.process(escopo, output_path=f_normas)
     else:
         log.info(f"\n[ETAPA 3] Carregando resultado de normas do cache: {f_normas}")
         normas_raw = _load_json(f_normas)
         normas_result = NormasConsultaResult.model_validate(normas_raw)
 
+    # ── DIAGNÓSTICO: breakdown por fonte ─────────────────────────────────────
+    n_specs = len(normas_result.especificacoes_extraidas)
+    by_fonte = {}
+    for s in normas_result.especificacoes_extraidas:
+        src = s.norma_origem or "?"
+        by_fonte[src] = by_fonte.get(src, 0) + 1
     log.info(
-        f"  {len(normas_result.especificacoes_extraidas)} specs extraídas de "
-        f"{len(normas_result.normas_consultadas)} normas | "
+        f"  {n_specs} specs extraídas de {len(normas_result.normas_consultadas)} normas | "
         f"{len(normas_result.normas_sem_resultado)} sem resultado no Qdrant"
+    )
+    log.info(f"  Breakdown por fonte: {by_fonte}")
+
+    ieis_count = by_fonte.get("IEIS", 0) + by_fonte.get("IEIS_NDT", 0)
+    ebp_count  = by_fonte.get("EBP_SPOOL", 0) + by_fonte.get("ESCOPO_TAG", 0)
+    iso_count  = sum(v for k, v in by_fonte.items() if k.startswith("ISOMETRICO:"))
+    qdrant_count = n_specs - ieis_count - ebp_count - iso_count
+    log.info(
+        f"  Fontes: IEIS={ieis_count} | EBP/spool={ebp_count} | "
+        f"Isométrico={iso_count} | Qdrant={qdrant_count}"
     )
 
     if not normas_result.especificacoes_extraidas:
         log.warning(
-            "Nenhuma especificação extraída das normas. "
-            "Verifique se as normas estão indexadas no Qdrant "
+            "Nenhuma especificação extraída. Verifique se as normas estão indexadas no Qdrant "
             f"(collection: {__import__('core.config', fromlist=['config']).config.COLLECTION_NORMAS})."
         )
 
@@ -307,6 +364,18 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Diretório com os arquivos do projeto (usa o primeiro PDF/MD/TXT encontrado). Use --md ou --md-dir.",
     )
     parser.add_argument(
+        "--ieis",
+        default=None,
+        help="Caminho para o IEIS (Instrução para Execução e Inspeção de Solda). "
+             "Fornece material base, eletrodo, processo de soldagem e NDT diretamente.",
+    )
+    parser.add_argument(
+        "--ebp",
+        default=None,
+        help="Caminho para o EBP/Planejamento Executivo (Book of Planning). "
+             "Fornece spool list com comprimentos reais, isométricos e referência de piping class.",
+    )
+    parser.add_argument(
         "--output-dir",
         default="Data/etapa_bom_output",
         help="Diretório de saída para JSONs intermediários e arquivo final (padrão: Data/etapa_bom_output)",
@@ -318,9 +387,18 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Formato de exportação da BOM (padrão: xlsx)",
     )
     parser.add_argument(
+        "--isometrico",
+        nargs="+",
+        default=None,
+        metavar="PATH",
+        help="Caminho(s) para imagem(ns) JPG/PNG de isométrico. "
+             "Usa Qwen2.5-VL-72B via HF Inference API para extrair specs visuais. "
+             "Exemplo: --isometrico 'Figura 1 atualizada.jpg'",
+    )
+    parser.add_argument(
         "--use-llama",
         action="store_true",
-        help="Usa Llama3 local (Ollama) em vez de Claude na Etapa 3. Recomendado apenas se não houver ANTHROPIC_API_KEY.",
+        help="Usa Llama3 local (Ollama) em vez de Gemini na Etapa 3. Para uso offline.",
     )
     parser.add_argument(
         "--resume-from",
@@ -348,8 +426,12 @@ if __name__ == "__main__":
         csv_path=args.csv,
         md_path=args.md,
         md_dir=args.md_dir,
+        ieis_path=args.ieis,
+        ebp_path=args.ebp,
+        isometrico_paths=args.isometrico,
         output_dir=args.output_dir,
-        use_claude=not args.use_llama,
+        use_claude=False,           # Claude desabilitado — usar Gemini ou Llama3
+        use_gemini=not args.use_llama,
         export_format=args.format,
         resume_from=args.resume_from,
         dry_run=args.dry_run,

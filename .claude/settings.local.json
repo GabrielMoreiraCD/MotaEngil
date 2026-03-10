@@ -8,7 +8,22 @@
       "Bash(dir /s \"Data\\\\projetos\\\\SS-93 Reparo com Solda\")",
       "Bash(C:/Users/gabriel.moreira/AppData/Local/miniconda3/envs/rag_env/python.exe -c \":*)",
       "Bash(C:/Users/gabriel.moreira/AppData/Local/miniconda3/envs/rag_env/python.exe etapa3456.py --csv \"Data/projetos/SS-93 Reparo com Solda/Documento de Referencia/DE - 14770545-1-1.csv\" --md \"Data/projetos/SS-93 Reparo com Solda/PARTE 5 - P-54-2025-PP_BP_SS-93-2025_2029370836_LP448.pdf\" --output-dir Data/etapa_bom_output/SS-93 --format both --use-llama)",
-      "Bash(C:/Users/gabriel.moreira/AppData/Local/miniconda3/envs/rag_env/python.exe etapa3456.py --csv \"Data/projetos/SS-93 Reparo com Solda/Documento de Referencia/DE - 14770545-1-1.csv\" --md \"Data/projetos/SS-93 Reparo com Solda/PARTE 5 - P-54-2025-PP_BP_SS-93-2025_2029370836_LP448.pdf\" --output-dir Data/etapa_bom_output/SS-93 --format both --use-llama --resume-from 4)"
+      "Bash(C:/Users/gabriel.moreira/AppData/Local/miniconda3/envs/rag_env/python.exe etapa3456.py --csv \"Data/projetos/SS-93 Reparo com Solda/Documento de Referencia/DE - 14770545-1-1.csv\" --md \"Data/projetos/SS-93 Reparo com Solda/PARTE 5 - P-54-2025-PP_BP_SS-93-2025_2029370836_LP448.pdf\" --output-dir Data/etapa_bom_output/SS-93 --format both --use-llama --resume-from 4)",
+      "Bash(pdftotext -f 33 -l 37 \"c:/luza_datasets/Rag-pipeline-main/Data/projetos/SS-93 Reparo com Solda/PARTE 5 - P-54-2025-PP_BP_SS-93-2025_2029370836_LP448.pdf\" -)",
+      "Bash(python3 -c \"import fitz; print\\(''PyMuPDF available''\\)\")",
+      "Bash(pdftotext -f 1 -l 2 \"C:\\\\luza_datasets\\\\Rag-pipeline-main\\\\Data\\\\projetos\\\\SS-93 Reparo com Solda/Documento de Referencia/2401109_CERT 7504_P-54_ 2-F-B10S-200.pdf\" -)",
+      "Bash(pdftotext -f 1 -l 2 \"C:\\\\luza_datasets\\\\Rag-pipeline-main\\\\Data\\\\projetos\\\\SS-93 Reparo com Solda/Documento de Referencia/Anexo A.pdf\" -)",
+      "Bash(pdftotext -f 1 -l 2 \"C:\\\\luza_datasets\\\\Rag-pipeline-main\\\\Data\\\\projetos\\\\SS-93 Reparo com Solda/Documento de Referencia/DE - 14770545-1-1 SS093.pdf\" -)",
+      "Bash(pdftotext -f 1 -l 2 \"C:\\\\luza_datasets\\\\Rag-pipeline-main\\\\Data\\\\projetos\\\\SS-93 Reparo com Solda/Documento de Referencia/Relatório Nº 140000829096.pdf\" -)",
+      "Bash(pdftotext -f 1 -l 2 \"C:\\\\luza_datasets\\\\Rag-pipeline-main\\\\Data\\\\projetos\\\\SS-93 Reparo com Solda/PARTE 1 - RelatorioSS.pdf\" -)",
+      "Bash(pdftotext -f 1 -l 2 \"C:\\\\luza_datasets\\\\Rag-pipeline-main\\\\Data\\\\projetos\\\\SS-93 Reparo com Solda/PARTE 3 - ieis_002-ACT_0_20251211085653.pdf\" -)",
+      "Bash(pdftotext -f 1 -l 2 \"C:\\\\luza_datasets\\\\Rag-pipeline-main\\\\Data\\\\projetos\\\\SS-93 Reparo com Solda/PARTE 5 - P-54-2025-PP_BP_SS-93-2025_2029370836_LP448.pdf\" -)",
+      "Bash(python -m py_compile services/normas_agent.py)",
+      "Bash(\"C:\\\\Users\\\\gabriel.moreira\\\\AppData\\\\Local\\\\miniconda3\\\\python.exe\" -m py_compile services/normas_agent.py)",
+      "Bash(\"C:\\\\Users\\\\gabriel.moreira\\\\AppData\\\\Local\\\\miniconda3\\\\envs\\\\rag_env\\\\python.exe\" -m py_compile services/isometric_reader.py)",
+      "Bash(\"C:\\\\Users\\\\gabriel.moreira\\\\AppData\\\\Local\\\\miniconda3\\\\envs\\\\rag_env\\\\python.exe\" -m py_compile etapa3456.py)",
+      "Bash(\"C:\\\\Users\\\\gabriel.moreira\\\\AppData\\\\Local\\\\miniconda3\\\\envs\\\\rag_env\\\\python.exe\" -m pip install google-genai --quiet)",
+      "Bash(\"C:\\\\Users\\\\gabriel.moreira\\\\AppData\\\\Local\\\\miniconda3\\\\envs\\\\rag_env\\\\python.exe\" -c \":*)"
     ]
   }
 }

@@ -21,6 +21,12 @@ logger = logging.getLogger("TriageAgent")
 # Regex para extrair normas N-XXXX do texto bruto (fallback quando LLM falha)
 RE_NORMA_PETROBRAS = re.compile(r'\bN[-‐](\d{3,4})\b')
 
+# Regex de fallback para campos críticos (pós-LLM)
+RE_PLATAFORMA = re.compile(r'\b(P-\d{2,3}|FPSO-[A-Z0-9-]+|PCH-\d|FPZ-\d{2})\b')
+RE_TAG_LINHA  = re.compile(r'\b(\d{1,4}["″\u201d][-\w]+-[A-Z]\d+[A-Z]+-\d+)\b')
+RE_LP         = re.compile(r'\bLP[-\s]?(\d{3,4})\b', re.IGNORECASE)
+RE_PIPING_CLASS = re.compile(r'\b([A-Z]\d{1,2}[A-Z]{1,2})\b')
+
 # ─────────────────────────────────────────────────────────────────────────────
 # PASS 1: Skeleton focado APENAS no Formulário CSV
 # Campos menores = modelo não se perde entre as duas fontes
@@ -61,14 +67,71 @@ SKELETON_MD = """{
   ]
 }"""
 
+# ─────────────────────────────────────────────────────────────────────────────
+# PASS 3: Skeleton focado no IEIS (Instrução para Execução e Inspeção de Solda)
+# ─────────────────────────────────────────────────────────────────────────────
+SKELETON_IEIS = """{
+  "material_base_tubo": "???",
+  "material_base_acessorios": "???",
+  "processo_soldagem": "???",
+  "metal_adicao": "???",
+  "classificacao_aws": "???",
+  "ndt_requerido": ["???"],
+  "normas_aplicaveis": ["???"],
+  "classe_tubo": "???",
+  "pre_aquecimento_min_C": "???",
+  "pwht_requerido": "???"
+}"""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PASS 4: Skeleton focado no EBP (Planejamento Executivo / Book of Planning)
+# ─────────────────────────────────────────────────────────────────────────────
+SKELETON_EBP = """{
+  "isometricos_referenciados": ["???"],
+  "spool_list": [
+    {
+      "spool_id": "???",
+      "material_tubo": "???",
+      "dn": "???",
+      "schedule": "???",
+      "comprimento_m": "???",
+      "flange_quantidade": "???",
+      "flange_tipo": "???",
+      "flange_classe": "???"
+    }
+  ],
+  "piping_class_referencia": "???",
+  "normas_projeto": ["???"]
+}"""
+
+
+# Regex para detectar placeholders de data/plataforma errônea em campos do formulário
+# Ex: "P-37 | 2027" ou "P-35 | 2026" — alucina plataforma/ativo de outro projeto
+RE_DATA_PLACEHOLDER = re.compile(r'\|\s*\d{4}')
+
 
 class UnifiedTriageAgent:
-    def __init__(self, use_claude: bool = True):
-        logger.info("Inicializando Agente de Triagem Unificado (Two-Pass)...")
+    def __init__(self, use_claude: bool = False, use_gemini: bool = True):
+        logger.info("Inicializando Agente de Triagem Unificado (Four-Pass)...")
 
-        # Claude disponível apenas se: caller quer Claude E config permite E chave existe
-        self.use_claude = use_claude and config.USE_CLAUDE and bool(config.ANTHROPIC_API_KEY)
-        if self.use_claude:
+        # Gemini: padrão quando GEMINI_KEY disponível
+        self.use_gemini = config.USE_GEMINI and bool(config.GEMINI_KEY)
+        # Claude: legado, apenas se Gemini indisponível
+        self.use_claude = (not self.use_gemini) and use_claude and config.USE_CLAUDE and bool(config.ANTHROPIC_API_KEY)
+
+        self.gemini = None
+        self.claude = None
+
+        if self.use_gemini:
+            try:
+                from google import genai as _genai
+                self.gemini = _genai.Client(api_key=config.GEMINI_KEY)
+                logger.info(f"Triage usando Gemini ({config.GEMINI_MODEL}) para extração estruturada.")
+            except Exception as e:
+                logger.warning(f"Gemini não disponível ({e}). Fallback para Llama3.")
+                self.use_gemini = False
+                self.gemini = None
+        elif self.use_claude:
             try:
                 from core.models import get_claude_client
                 self.claude = get_claude_client()
@@ -77,8 +140,6 @@ class UnifiedTriageAgent:
                 logger.warning(f"Claude não disponível ({e}). Fallback para Llama3.")
                 self.use_claude = False
                 self.claude = None
-        else:
-            self.claude = None
 
         self.llm = get_llm()
         self.prompt_csv = self._build_prompt_csv()
@@ -180,6 +241,20 @@ class UnifiedTriageAgent:
                 raise
         return self._read_file(file_path)
 
+    def _call_llm_gemini(self, system_prompt: str, user_prompt: str) -> str:
+        """Chama Gemini API com system + user prompt. Retorna texto da resposta."""
+        from google.genai import types as _gtypes
+        full_prompt = f"{system_prompt}\n\n{user_prompt}"
+        response = self.gemini.models.generate_content(
+            model=config.GEMINI_MODEL,
+            contents=full_prompt,
+            config=_gtypes.GenerateContentConfig(
+                max_output_tokens=4096,
+                temperature=0.1,
+            ),
+        )
+        return response.text
+
     def _call_llm_claude(self, system_prompt: str, user_prompt: str) -> str:
         """Chama Claude API com system + user prompt. Retorna texto da resposta."""
         response = self.claude.messages.create(
@@ -189,6 +264,19 @@ class UnifiedTriageAgent:
             messages=[{"role": "user", "content": user_prompt}],
         )
         return response.content[0].text
+
+    def _call_llm(self, system_prompt: str, user_prompt: str) -> str:
+        """Chama o LLM disponível: Gemini > Claude > Llama3."""
+        if self.use_gemini and self.gemini:
+            return self._call_llm_gemini(system_prompt, user_prompt)
+        elif self.use_claude and self.claude:
+            return self._call_llm_claude(system_prompt, user_prompt)
+        else:
+            # Llama3 via LangChain
+            from langchain_core.prompts import PromptTemplate
+            tmpl = "{system}\n\n{user}"
+            pt = PromptTemplate(template=tmpl, input_variables=["system", "user"])
+            return (pt | self.llm).invoke({"system": system_prompt, "user": user_prompt})
 
     # ── Extrator JSON robusto ──────────────────────────────────────────────────
 
@@ -255,9 +343,118 @@ class UnifiedTriageAgent:
                 out[k] = v
         return out
 
-    # ── Orquestrador: Two-Pass ─────────────────────────────────────────────────
+    # ── Pass 3: IEIS ───────────────────────────────────────────────────────────
 
-    def process_project_files(self, csv_path: str, md_path: str) -> dict:
+    def _process_ieis(self, ieis_path: str) -> dict:
+        """
+        Pass 3: Extrai especificações de soldagem e materiais base do IEIS.
+        Retorna dict com material_base_tubo, eletrodo, processo, NDT, etc.
+        """
+        ieis_file = Path(ieis_path)
+        if not ieis_file.exists():
+            logger.warning(f"IEIS não encontrado: {ieis_path}")
+            return {}
+
+        texto = self._clean_md_text(self._extract_text_from_file(ieis_file))
+        llm_label = "Gemini" if self.use_gemini else ("Claude" if self.use_claude else "Llama3")
+        logger.info(f"Pass 3/4 — Extraindo especificações do IEIS via {llm_label}...")
+
+        try:
+            if self.use_gemini or self.use_claude:
+                system_p3 = (
+                    "Você é engenheiro de soldagem Petrobras. Extraia dados técnicos do IEIS.\n"
+                    "REGRAS:\n"
+                    "- Substitua '???' pelo valor real. Se não existir, use null ou [].\n"
+                    "- 'material_base_tubo': material do tubo (ex: API 5L GrB, ASTM A106 GrB). NÃO use siglas internas como 'EPS'.\n"
+                    "- 'metal_adicao': código do eletrodo/arame (ex: E7018, ER70S-6).\n"
+                    "- 'classificacao_aws': código AWS completo (ex: AWS A5.1 E7018).\n"
+                    "- 'ndt_requerido': lista com siglas (LP, VT, UT, RT, MT).\n"
+                    "- 'normas_aplicaveis': APENAS N-XXXX citadas no documento.\n"
+                    "- Retorne APENAS JSON válido."
+                )
+                user_p3 = f"<IEIS>\n{texto}\n</IEIS>\n\nJSON preenchido:\n{SKELETON_IEIS}"
+                raw = self._call_llm(system_p3, user_p3)
+            else:
+                from langchain_core.prompts import PromptTemplate
+                tmpl = (
+                    "Você é engenheiro de soldagem. Extraia dados do IEIS abaixo.\n"
+                    "Retorne APENAS o JSON preenchido. Sem texto adicional.\n\n"
+                    "<IEIS>\n{texto}\n</IEIS>\n\nJSON preenchido:\n{skeleton}"
+                )
+                prompt = PromptTemplate(
+                    template=tmpl, input_variables=["texto"],
+                    partial_variables={"skeleton": SKELETON_IEIS}
+                )
+                raw = (prompt | self.llm).invoke({"texto": texto[:6000]})
+
+            data = self._sanitize(self._extract_json_robust(raw, "IEIS"))
+            logger.info(f"Pass 3 concluído. Eletrodo: {data.get('metal_adicao')} | "
+                        f"NDT: {data.get('ndt_requerido')}")
+            return data
+        except Exception as e:
+            logger.error(f"Falha no Pass 3 (IEIS): {e}", exc_info=True)
+            return {}
+
+    # ── Pass 4: EBP ────────────────────────────────────────────────────────────
+
+    def _process_ebp(self, ebp_path: str) -> dict:
+        """
+        Pass 4: Extrai spool list, isométricos e referências de piping class do EBP.
+        Retorna dict com spool_list (com comprimentos reais), isométricos, normas_projeto.
+        """
+        ebp_file = Path(ebp_path)
+        if not ebp_file.exists():
+            logger.warning(f"EBP não encontrado: {ebp_path}")
+            return {}
+
+        texto = self._clean_md_text(self._extract_text_from_file(ebp_file))
+        llm_label = "Gemini" if self.use_gemini else ("Claude" if self.use_claude else "Llama3")
+        logger.info(f"Pass 4/4 — Extraindo spool list do EBP via {llm_label}...")
+
+        try:
+            if self.use_gemini or self.use_claude:
+                system_p4 = (
+                    "Você é engenheiro de tubulação Petrobras. Extraia dados do Planejamento Executivo (EBP).\n"
+                    "REGRAS:\n"
+                    "- Substitua '???' pelo valor real. Se não existir, use null ou [].\n"
+                    "- 'spool_list': cada spool com DN (polegadas, ex: '2\"'), schedule (ex: SCH 40) e comprimento em metros.\n"
+                    "- 'dn': diâmetro nominal em polegadas (ex: '2\"'). NÃO use código de piping class como schedule.\n"
+                    "- 'schedule': espessura da parede (ex: SCH 40, STD). Se só tiver piping class, use SCH 40.\n"
+                    "- 'comprimento_m': número decimal (ex: 2.08). null se não encontrado.\n"
+                    "- 'flange_quantidade': número inteiro de flanges no spool. null se não encontrado.\n"
+                    "- 'piping_class_referencia': código da spec de tubulação (ex: I-ET-3010.68-...).\n"
+                    "- 'normas_projeto': refs de engenharia no formato I-ET-XXXX ou DR-ENGP-XXXX.\n"
+                    "- Retorne APENAS JSON válido."
+                )
+                user_p4 = f"<EBP>\n{texto[:20000]}\n</EBP>\n\nJSON preenchido:\n{SKELETON_EBP}"
+                raw = self._call_llm(system_p4, user_p4)
+            else:
+                from langchain_core.prompts import PromptTemplate
+                tmpl = (
+                    "Você é engenheiro de tubulação. Extraia dados do EBP abaixo.\n"
+                    "Retorne APENAS o JSON preenchido. Sem texto adicional.\n\n"
+                    "<EBP>\n{texto}\n</EBP>\n\nJSON preenchido:\n{skeleton}"
+                )
+                prompt = PromptTemplate(
+                    template=tmpl, input_variables=["texto"],
+                    partial_variables={"skeleton": SKELETON_EBP}
+                )
+                raw = (prompt | self.llm).invoke({"texto": texto[:6000]})
+
+            data = self._sanitize(self._extract_json_robust(raw, "EBP"))
+            n_spools = len(data.get("spool_list") or [])
+            logger.info(f"Pass 4 concluído. Spools encontrados: {n_spools} | "
+                        f"Piping spec: {data.get('piping_class_referencia')}")
+            return data
+        except Exception as e:
+            logger.error(f"Falha no Pass 4 (EBP): {e}", exc_info=True)
+            return {}
+
+    # ── Orquestrador: Two-Pass (+ IEIS + EBP opcionais) ───────────────────────
+
+    def process_project_files(self, csv_path: str, md_path: str,
+                               ieis_path: str | None = None,
+                               ebp_path: str | None = None) -> dict:
         csv_file, md_file = Path(csv_path), Path(md_path)
 
         if not csv_file.exists():
@@ -269,24 +466,27 @@ class UnifiedTriageAgent:
         cleaned_csv = self._clean_csv_text(self._extract_text_from_file(csv_file))
         cleaned_md  = self._clean_md_text(self._extract_text_from_file(md_file))
 
-        llm_label = "Claude" if self.use_claude else "Llama3"
+        llm_label = "Gemini" if self.use_gemini else ("Claude" if self.use_claude else "Llama3")
 
         # ── PASS 1: extração do formulário ─────────────────────────────────────
-        logger.info(f"Pass 1/2 — Extraindo dados do Formulário CSV via {llm_label}...")
+        logger.info(f"Pass 1/4 — Extraindo dados do Formulário CSV via {llm_label}...")
         try:
-            if self.use_claude:
+            if self.use_gemini or self.use_claude:
                 system_p1 = (
                     "Você é um extrator de dados. Leia o formulário e preencha o JSON.\n"
                     "REGRAS:\n"
                     "- Substitua '???' pelo valor real. Se não existir, use null ou [].\n"
                     "- 'id_servico': código no formato SS-XX, LC-XXX ou similar.\n"
+                    "- 'plataforma': apenas o código da plataforma (ex: P-54). NÃO inclua nome de campo ou data.\n"
+                    "- 'ativo': nome do ativo (ex: 'Libra'). NÃO inclua datas ou códigos de plataforma.\n"
+                    "- 'tag_equipamento_principal': TAG exato do equipamento (ex: P-2001A). NÃO inclua data.\n"
                     "- 'servico_critico': 'Sim' se [RESPOSTA: SIM], senão 'Não'.\n"
                     "- 'tarefas_execucao': ações listadas no item 4.1.\n"
                     "- 'notas_e_restricoes': apenas as linhas sob 'NOTAS:' no item 4.1.\n"
                     "- Retorne APENAS JSON válido. Sem texto antes ou depois."
                 )
                 user_p1 = f"<FORMULARIO>\n{cleaned_csv}\n</FORMULARIO>\n\nJSON preenchido:\n{SKELETON_CSV}"
-                raw_csv = self._call_llm_claude(system_p1, user_p1)
+                raw_csv = self._call_llm(system_p1, user_p1)
             else:
                 raw_csv = (self.prompt_csv | self.llm).invoke({"texto_formulario": cleaned_csv})
             data_csv = self._sanitize(self._extract_json_robust(raw_csv, "CSV"))
@@ -296,9 +496,9 @@ class UnifiedTriageAgent:
             data_csv = {}
 
         # ── PASS 2: extração do Memorial Descritivo ────────────────────────────
-        logger.info(f"Pass 2/2 — Extraindo dados do Memorial Descritivo via {llm_label}...")
+        logger.info(f"Pass 2/4 — Extraindo dados do Memorial Descritivo via {llm_label}...")
         try:
-            if self.use_claude:
+            if self.use_gemini or self.use_claude:
                 system_p2 = (
                     "Você é um extrator de dados de engenharia offshore Petrobras.\n"
                     "REGRAS:\n"
@@ -309,7 +509,7 @@ class UnifiedTriageAgent:
                     "- Retorne APENAS JSON válido. Sem texto antes ou depois."
                 )
                 user_p2 = f"<MEMORIAL_DESCRITIVO>\n{cleaned_md}\n</MEMORIAL_DESCRITIVO>\n\nJSON preenchido:\n{SKELETON_MD}"
-                raw_md = self._call_llm_claude(system_p2, user_p2)
+                raw_md = self._call_llm(system_p2, user_p2)
             else:
                 raw_md = (self.prompt_md | self.llm).invoke({"texto_md": cleaned_md})
             data_md = self._sanitize(self._extract_json_robust(raw_md, "MD"))
@@ -347,8 +547,44 @@ class UnifiedTriageAgent:
             logger.info(f"  Normas adicionais do CSV: {list(set(normas_merged_final) - set(normas_merged))}")
         data_md["normas_petrobras_aplicaveis"] = normas_merged_final
 
-        # ── MERGE: une os dois dicionários ─────────────────────────────────────
+        # ── PASS 3: IEIS (opcional) ────────────────────────────────────────────
+        data_ieis = {}
+        if ieis_path:
+            data_ieis = self._process_ieis(ieis_path)
+            # Merge normas do IEIS
+            normas_ieis = [f"N-{m.zfill(4)}" for m in RE_NORMA_PETROBRAS.findall(
+                self._clean_md_text(self._extract_text_from_file(Path(ieis_path)))
+            )]
+            normas_merged_final_prev = data_md.get("normas_petrobras_aplicaveis") or []
+            normas_merged_final_prev = list(dict.fromkeys(normas_merged_final_prev + normas_ieis))
+            data_md["normas_petrobras_aplicaveis"] = normas_merged_final_prev
+
+        # ── PASS 4: EBP (opcional) ─────────────────────────────────────────────
+        data_ebp = {}
+        if ebp_path:
+            data_ebp = self._process_ebp(ebp_path)
+            # Merge normas do EBP
+            normas_projeto = data_ebp.get("normas_projeto") or []
+            normas_n = [f"N-{m.zfill(4)}" for m in RE_NORMA_PETROBRAS.findall(
+                self._clean_md_text(self._extract_text_from_file(Path(ebp_path)))
+            )]
+            normas_prev = data_md.get("normas_petrobras_aplicaveis") or []
+            data_md["normas_petrobras_aplicaveis"] = list(dict.fromkeys(normas_prev + normas_n))
+
+        # ── MERGE: une os dicionários ───────────────────────────────────────────
         resultado = {**data_csv, **data_md}
+        if data_ieis:
+            resultado["especificacoes_soldagem"] = data_ieis
+        if data_ebp:
+            resultado["spool_list"] = data_ebp.get("spool_list") or []
+            resultado["isometricos_referenciados"] = data_ebp.get("isometricos_referenciados") or []
+            resultado["piping_class_referencia"] = data_ebp.get("piping_class_referencia")
+            # Merge normas_projeto do EBP como documentos de referência
+            docs_ref = resultado.get("documentos_referencia") or []
+            for np in (data_ebp.get("normas_projeto") or []):
+                if np and np not in docs_ref:
+                    docs_ref.append(np)
+            resultado["documentos_referencia"] = docs_ref
 
         # ── Fallback: id_servico inválido quando LLM confunde com tag da linha ──
         tag = resultado.get("tag_linha_principal") or ""
@@ -365,6 +601,49 @@ class UnifiedTriageAgent:
                 # Usa o stem do arquivo CSV como fallback final
                 resultado["id_servico"] = csv_file.stem
                 logger.info(f"  id_servico fallback para nome do arquivo: {resultado['id_servico']}")
+
+        # ── Fallback: ativo/tag_equipamento — LLM às vezes alucina "P-37 | 2027" ──
+        # Padrão "X | AAAA" indica que o LLM confundiu data ou campo de outra linha
+        ativo_val = resultado.get("ativo") or ""
+        if RE_DATA_PLACEHOLDER.search(ativo_val):
+            logger.info(f"  ativo corrigido (placeholder detectado): '{ativo_val}' → None")
+            resultado["ativo"] = None
+
+        tag_eq_val = resultado.get("tag_equipamento_principal") or ""
+        if RE_DATA_PLACEHOLDER.search(tag_eq_val):
+            logger.info(f"  tag_equipamento_principal corrigido (placeholder detectado): '{tag_eq_val}' → None")
+            resultado["tag_equipamento_principal"] = None
+
+        # ── Fallback: plataforma — Llama3 frequentemente alucina plataformas diferentes ──
+        plataforma_llm = resultado.get("plataforma") or ""
+        if not RE_PLATAFORMA.match(plataforma_llm.strip()):
+            # Busca plataforma diretamente no texto dos dois documentos
+            for texto_fonte in [cleaned_csv, cleaned_md]:
+                m = RE_PLATAFORMA.search(texto_fonte)
+                if m:
+                    resultado["plataforma"] = m.group(1)
+                    logger.info(f"  plataforma corrigida via regex: {resultado['plataforma']}")
+                    break
+
+        # ── Fallback: tag_linha_principal — Llama3 usa placeholder "LP-XXX" ──
+        tag_llm = resultado.get("tag_linha_principal") or ""
+        if not tag_llm or tag_llm in ("LP-XXX", "???", "null") or not RE_TAG_LINHA.match(tag_llm.strip()):
+            for texto_fonte in [cleaned_csv, cleaned_md]:
+                m = RE_TAG_LINHA.search(texto_fonte)
+                if m:
+                    resultado["tag_linha_principal"] = m.group(1)
+                    logger.info(f"  tag_linha_principal corrigida via regex: {resultado['tag_linha_principal']}")
+                    break
+
+        # ── Fallback: numero_ze / LP — captura LP-NNN do texto ──
+        ze_llm = resultado.get("numero_ze") or ""
+        if not ze_llm or ze_llm in ("LP-XXX", "???", "null"):
+            for texto_fonte in [cleaned_csv, cleaned_md]:
+                m = RE_LP.search(texto_fonte)
+                if m:
+                    resultado["numero_ze"] = f"LP-{m.group(1)}"
+                    logger.info(f"  numero_ze corrigido via regex: {resultado['numero_ze']}")
+                    break
 
         logger.info("✓ Merge concluído. Triagem finalizada.")
         return resultado

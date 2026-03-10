@@ -7,6 +7,50 @@ Cada campo é descrito com detalhes para garantir clareza e consistência na col
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
+
+# =============================================================================
+# SUB-MODELOS: Especificações de Soldagem (IEIS) e Spool List (EBP)
+# =============================================================================
+
+class IEISEspecificacoes(BaseModel):
+    """Especificações técnicas extraídas do IEIS (Instrução de Execução e Inspeção de Solda)."""
+    material_base_tubo: Optional[str] = Field(default=None, description="Material do tubo (ex: API 5L GrB, ASTM A106 GrB)")
+    material_base_acessorios: Optional[str] = Field(default=None, description="Material de acessórios (ex: ASTM A105)")
+    processo_soldagem: Optional[str] = Field(default=None, description="Processo(s) de soldagem (SMAW, GTAW, GMAW, FCAW)")
+    metal_adicao: Optional[str] = Field(default=None, description="Eletrodo/arame de adição (ex: E7018, ER70S-6)")
+    classificacao_aws: Optional[str] = Field(default=None, description="Classificação AWS completa (ex: AWS A5.1 E7018)")
+    ndt_requerido: List[str] = Field(default_factory=list, description="Ensaios não-destrutivos requeridos (LP, VT, UT, RT, MT)")
+    normas_aplicaveis: List[str] = Field(default_factory=list, description="Normas citadas no IEIS (N-XXXX)")
+    classe_tubo: Optional[str] = Field(default=None, description="Classe do tubo (Classe I, II, III)")
+    pre_aquecimento_min_C: Optional[str] = Field(default=None, description="Temperatura mínima de pré-aquecimento em °C")
+    pwht_requerido: Optional[str] = Field(default=None, description="Pós-aquecimento (PWHT) requerido? Sim/Não")
+
+
+class SpoolItem(BaseModel):
+    """Um spool individual da lista de spools do EBP."""
+    spool_id: Optional[str] = Field(default=None, description="Identificador do spool (ex: LP448-S01)")
+    material_tubo: Optional[str] = Field(default=None, description="Material do tubo do spool (ex: API 5L GrB)")
+    dn: Optional[str] = Field(default=None, description="Diâmetro nominal em polegadas (ex: '2\"')")
+    schedule: Optional[str] = Field(default=None, description="Schedule do tubo (ex: SCH 40, STD)")
+    comprimento_m: Optional[float] = Field(default=None, description="Comprimento real do spool em metros (ex: 2.08)")
+    flange_quantidade: Optional[int] = Field(default=None, description="Número de flanges no spool")
+    flange_tipo: Optional[str] = Field(default=None, description="Tipo de flange (ex: pescoço de solda, encaixe)")
+    flange_classe: Optional[str] = Field(default=None, description="Classe de pressão do flange (ex: 150#, 300#)")
+
+
+class IsometricExtractedSpec(BaseModel):
+    """Especificação de material extraída visualmente de um isométrico por modelo de visão (Qwen2.5-VL)."""
+    tipo_material: str = Field(description="Tipo: tubo_conducao|flange_pescoço|flange_encaixe|junta_espiralada|parafuso_estojo|cotovelo|tee|valvula|eletrodo_smaw|consumivel_end")
+    descricao_tecnica: str = Field(description="Descrição técnica extraída do isométrico")
+    quantidade: Optional[float] = Field(default=None, description="Quantidade identificada no isométrico")
+    unidade: Optional[str] = Field(default=None, description="Unidade: M, UN, KG")
+    diametro_nps: Optional[str] = Field(default=None, description="Diâmetro nominal em polegadas")
+    schedule: Optional[str] = Field(default=None, description="Schedule/espessura")
+    fonte_imagem: str = Field(description="Nome do arquivo de imagem fonte (ex: Figura 1 atualizada.jpg)")
+    confianca: float = Field(default=0.8, description="Confiança da extração (0.0–1.0)")
+    notas: Optional[str] = Field(default=None, description="Notas adicionais do modelo de visão")
+
+
 class SubEscopo(BaseModel):
     disciplina_ou_sistema: str = Field(description="Nome genérico da disciplina ou subsistema extraído do MD (ex: Gás de Exportação, Gás Lift, Estrutura Metálica, Instrumentação)")
     tarefas: List[str] = Field(description="Lista de ações físicas a serem executadas descritas no Memorial Descritivo para este sub-escopo")
@@ -39,6 +83,17 @@ class EscopoTriagemUnificado(BaseModel):
     # --- MICRO: Dados do Memorial Descritivo (MD) ---
     normas_petrobras_aplicaveis: List[str] = Field(default_factory=list, description="Lista de normas Petrobras citadas no texto do Memorial Descritivo (ex: N-279, N-115, N-858, N-1374)")
     detalhamento_por_disciplina: List[SubEscopo] = Field(default_factory=list, description="Mapeamento detalhado extraído EXCLUSIVAMENTE do Memorial Descritivo, agrupando as tarefas e os documentos (Isométricos) por sistema ou disciplina.")
+
+    # --- IEIS: Especificações de Soldagem (Pass 3) ---
+    especificacoes_soldagem: Optional[IEISEspecificacoes] = Field(default=None, description="Especificações técnicas de soldagem extraídas do IEIS (eletrodo, processo, NDT)")
+
+    # --- EBP: Spool List e Isométricos (Pass 4) ---
+    spool_list: List[SpoolItem] = Field(default_factory=list, description="Lista de spools com comprimentos reais, extraídos do EBP/Planejamento Executivo")
+    isometricos_referenciados: List[str] = Field(default_factory=list, description="Isométricos referenciados (ex: IS-2-F-B10S-200-001)")
+    piping_class_referencia: Optional[str] = Field(default=None, description="Referência da piping class (ex: I-ET-3010.68-1200-200)")
+
+    # --- Isométrico Visual: specs extraídas por modelo de visão (Pass 5) ---
+    isometric_specs: List[IsometricExtractedSpec] = Field(default_factory=list, description="Especificações extraídas visualmente de isométricos via Qwen2.5-VL")
 
 
 # =============================================================================
@@ -121,6 +176,7 @@ class BOMLineItem(BaseModel):
     categoria: str = Field(description="Categoria do material")
     source_file_catalogo: str = Field(default="", description="Arquivo XLSX de origem no catálogo")
     observacoes: Optional[str] = Field(default=None, description="Observações ou avisos sobre o item")
+    fonte: str = Field(default="rag_normas", description="Origem do item: 'rag_normas' | 'ieis_direto' | 'ebp_spool' | 'catalog_exact' | 'nao_fornecido'")
 
 
 class ListaMateriais(BaseModel):

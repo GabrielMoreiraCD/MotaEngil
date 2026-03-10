@@ -1,0 +1,181 @@
+=== SYSTEM ===
+Você é engenheiro de materiais especialista em normas técnicas Petrobras.
+Sua tarefa é identificar materiais, consumíveis e insumos NECESSÁRIOS para o serviço descrito, com base nos trechos de norma fornecidos.
+
+REGRAS:
+1. Identifique materiais mencionados ou REQUERIDOS pelos procedimentos descritos nos trechos.
+2. Inclua: eletrodos, arames de solda, tubos, flanges, juntas, parafusos, tintas, abrasivos,    reagentes END, EPIs de soldagem, gases de proteção.
+3. Para soldagem: identifique classificação AWS, processo (SMAW/GTAW/FCAW/GMAW).
+4. Para END: identifique consumíveis (penetrante, revelador, removedor).
+5. Para pintura: identifique tipo de tinta, abrasivo para jateamento, primer.
+6. Se o texto menciona um procedimento que REQUER um material específico, inclua esse material.
+7. Use null para campos não encontrados. NÃO invente códigos ASTM/AWS que não aparecem no texto.
+8. Retorne APENAS JSON válido (lista de objetos). Nenhum texto adicional.
+9. Se não houver materiais identificáveis nos trechos, retorne [].
+
+=== USER ===
+SERVIÇO: Parada - LP448 - 2"-F-B10S-200 Realizar preenchimento por solda | TAG: 2”-F-B10S-200 | Piping: não identificada | NPS: não identificado"
+TAREFAS: Isolar área; Pesquisar O2; Inibição de sensores; Medir explosividade; Gases tóxicos
+
+TRECHOS DA NORMA [N-0381]:
+[Seção 4.2]
+seguir. EXEMPLO 1 De acordo com a DI-1PBR-00337, as informações deste Documento são Propriedade da PETROBRAS, sendo Proibida a Utilização Fora da sua Finalidade. Formulário Pertencente à PETROBRAS N-381 Rev. M EXEMPLO 2
+
+---
+[Seção 1]
+(Modelo reduzido) Área útil N 
+LO 
+N 70 
+15 60 1 
+1 1 º :  
+IN @ 
+l'ff'M 
+IFOLHA:[14) de: 1 
+[6)  
+I" 
+(2) .(3) ou l4J 
+TITULO: 
+PETROBRAS 1 
+@ 1 
+-
+1 r--­
+<O 
+<O 
+<O 
+o
+
+---
+[Seção 4.3.2]
+REV. L Partes Atingidas 
+Descrição da Alteração 2 
+Revisado 3.5.4 
+Revisado REV. M Partes Atingidas 
+Descrição da Alteração Todas 
+Revisado
+
+---
+[Seção 3.4.3]
+3.4.3 e 3.4.4 
+Revisados 3.5.2 
+Revisado 3.5.4 
+Revisado 3.6.2 
+Revisado
+
+---
+[Seção 4.3.4]
+Anexo A - Dimensões e Disposição Geral para de Desenhos / Documentos Técnicos em 
+Geral - Figuras 30 
+60 
+55 
+35 o r--­ (0 -G) 
+@ 
+IN
+º (O (O : 
+CLIENTE: 
+(2) 
+FOLHA{14) de 
+PROGRAMA: 
+(3) 
+(17) 
+PETROBRAS 
+ÁREA: 
+(4) 
+30) (O @ (O TITULO: 
+® 
+(6)
+
+---
+[Seção 1]
+o 
+N (Modelo reduzido) Area útil ll) 
+ll)  1 60 1 
+70 
+1 15 1 
+1 r--­ @ I"' 
+® 
+IREV@ (0 (2),Q)ou	 
+I'°'  .. Wii (D 
+l'ETROBRAS TITULO: 1 
+(6) 
+® 
+1 
+ (O 
+o 
+ 110 
+35 102
+
+---
+[Seção 4.2]
+De acordo com a DI-1PBR-00337, as informações deste Documento são Propriedade da PETROBRAS, sendo Proibida a Utilização Fora da sua Finalidade. Formulário Pertencente à PETROBRAS N-381 Rev. M EXEMPLO 2
+
+---
+[Seção 4.3.2]
+4.3.2 e 4.3.3 
+Revisados 4.4.3 
+Incluído Figura A.1 
+Revisada Figuras A.5 e A.6 
+Revisadas Figura A.7 
+Incluída Figuras A.8 e A.9 
+Revisadas REV. H Partes Atingidas 
+Descrição da Alteração Revalidação REV. J Partes Atingidas 
+Descrição da Alteração 2 
+Revisado 3.5.4 
+Revisado Figuras A.1 a A.9 
+Revisadas REV. K Partes Atingidas 
+Descrição da Alteração 3.5.4 
+Revisado 4.4.3 
+Revisado
+
+---
+[Seção 1]
+1  Escopo 
+ 
+ 
+1.1  Esta Norma apresenta os formulários para a emissão de documentos técnicos de Engenharia e os 
+critérios de preenchimento dos seus respectivos campos. 
+ 
+ 
+1.2  Esta Norma deve ser utilizada em conjunto com as normas da ABNT citadas na Seção 2. Em caso 
+de divergência prevalecem os critérios desta Norma. 
+ 
+ 
+1.3  Esta Norma se aplica a projetos iniciados a partir da data de sua edição. 
+ 
+ 
+1.4  O prazo efetivo para implementação desta Norma em substituição à revisão anterior é de 180 dias 
+a partir da data de sua publicação. Caso a unidade da Petrobras que está aplicando a Norma entenda 
+que não é possível implementá-la neste prazo, deve registrar neste prazo um Plano de Implementação 
+definindo as ações necessárias e os respectivos prazos 
+ 
+ 
+1.5  A definição do prazo efetivo de implementação dos requisitos desta norma, quando esta é 
+referenciada em contratos de prestação de serviços e aquisição de bens, é prerrogativa exclusiva da 
+Petrobras. 
+ 
+ 
+1.6  Esta Norma contém Requisitos Técnicos e Práticas Recomendadas. 
+ 
+ 
+2 Referências Normativas 
+ 
+Os documentos a seguir são citados no texto de tal forma que seus conteúdos, totais ou parciais, 
+constituem requisitos para este Documento. Para referências datadas, aplicam-se somente as edições 
+citadas. Para referências não datadas, aplicam-se as edições mais recentes do referido documento 
+(incluindo emendas).
+
+---
+[Seção 18.1]
+referentes aos campos 8, 9 e 10 também são aplicáveis aos campos 22, 24 e 25. Campo 26 - Formato definido pela ABNT NBR 16752. Exemplo A0 1189 x 841. Campo 27 - Classificação do documento quanto ao grau de sigilo conforme diretriz PETROBRAS DI- 1PBR-00337.
+
+---
+[Seção 3.6.2]
+3.6.2  Os procedimentos de execução de emissão e revisão de desenhos devem ser conforme a 
+PETROBRAS N-2064.
+
+---
+[Seção 4.2]
+do documento (campo 9) deve ser diferente do responsável pela execução do documento (campo 8). NOTA 3 Nos campos 8, 9 e 10, incluir a identificação de apenas um responsável. Caso seja necessária a indicação de mais de um executor, devem ser informados os demais participantes através de uma nota, referenciando uma tabela com as seguintes informações: Nome, Gerência e Chave (Petrobras); Nome e Empresa Contratada (Contratada). No campo executor deve ser colocada uma referência para esta nota. NOTA 4 Conforme lei 5194 de 24 de dezembro de 1966, art. 19 e art. 20, todos os documentos do projeto devem ser assinados pelo responsável. A assinatura dos documentos pode ser realizada fisicamente (papel impresso) ou através de assinatura digital (com certificado) ou eletrônica (uso de chave e senha). Dependendo da necessidade, o documento pode ser assinado digitalmente ou eletronicamente ou utilizando-se log do usuário no sistema GED, com acesso através de identificação (chave) e uso de senha. Campo 11 - Indicação da escala do desenho, de acordo com o 3.2 desta Norma, quando for o caso. Campo 12 - Identificação da categoria do documento (exemplo: Folha de Dados, Requisição de Material, Cronograma), de acordo com o Anexo A da PETROBRAS N-1710. Campo 13 - Data da emissão ou revisão do documento técnico. Campo 14 - Numeração das folhas do documento técnico.
+
+
+Identifique materiais e consumíveis. Retorne JSON:
+[{"tipo_material":"...","descricao_tecnica":"...","norma_origem":"...","secao_norma":"...","confianca":0.9}]

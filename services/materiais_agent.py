@@ -26,6 +26,7 @@ from qdrant_client.models import Filter, FieldCondition, MatchAny
 from sentence_transformers import SentenceTransformer
 
 from core.config import config
+from core.models import ollama_chat
 from core.schemas import (
     CatalogItemMatch,
     EscopoTriagemUnificado,
@@ -266,9 +267,6 @@ class MateriaisMappingAgent:
         self.embedder = SentenceTransformer(config.EMBEDDING_MODEL)
         self.qdrant = QdrantClient(url=config.QDRANT_URL, api_key=config.QDRANT_API_KEY)
 
-        from core.models import get_llm
-        self.llm = get_llm()
-
         # Verifica se a coleção de materiais existe no Qdrant
         self.catalog_available = self._check_catalog_available()
         if not self.catalog_available:
@@ -367,7 +365,10 @@ class MateriaisMappingAgent:
         )
 
         try:
-            resposta = self.llm.invoke(prompt).strip()
+            resposta = ollama_chat(
+                "Você é almoxarife técnico Petrobras. Responda APENAS com o código do candidato escolhido ou NENHUM.",
+                prompt,
+            ).strip()
         except Exception as e:
             log.warning(f"Erro na disambiguation LLM: {e}")
             return candidates[0] if candidates else None

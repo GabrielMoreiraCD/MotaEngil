@@ -19,9 +19,6 @@ USO:
   # Com diretório MD (usa o primeiro arquivo .pdf/.md/.txt encontrado)
   python etapa3456.py --csv ... --md-dir "Data/projetos/SS-93 Reparo com Solda"
 
-  # Com Llama3 local (sem API Anthropic)
-  python etapa3456.py --csv ... --md ... --use-llama
-
   # Retomar da Etapa 4 (Etapas 2 e 3 já concluídas)
   python etapa3456.py --csv ... --md ... --resume-from 4
 
@@ -100,21 +97,18 @@ def run_pipeline(
     ebp_path: str | None = None,
     isometrico_paths: list[str] | None = None,
     output_dir: str = "Data/etapa_bom_output",
-    use_claude: bool = False,
-    use_gemini: bool = True,
     export_format: str = "xlsx",
     resume_from: int = 2,
     dry_run: bool = False,
 ) -> dict:
     """
-    Executa o pipeline completo de geração de BOM.
+    Executa o pipeline completo de geração de BOM (100% local via Ollama).
 
     Args:
         csv_path:     Caminho para o CSV do formulário de serviço (DE-*.csv)
         md_path:      Caminho para o arquivo do Memorial Descritivo (PDF/MD/TXT)
         md_dir:       Alternativa: diretório com PDFs (usa o primeiro encontrado)
         output_dir:   Diretório de saída para JSONs e arquivo final
-        use_claude:   Se True, usa claude-sonnet-4-6 na Etapa 3 (requer ANTHROPIC_API_KEY)
         export_format: "xlsx" | "pdf" | "both"
         resume_from:  Etapa a partir da qual retomar (2=triage, 3=normas, 4=materiais, 5=bom)
         dry_run:      Se True, executa tudo mas não salva arquivos finais
@@ -136,11 +130,7 @@ def run_pipeline(
     log.info("PIPELINE BOM — GERAÇÃO AUTOMÁTICA DE LISTA DE MATERIAIS")
     log.info("=" * 70)
     from core.config import config as _cfg
-    _llm_label = (
-        f"Gemini ({_cfg.GEMINI_MODEL})" if _cfg.USE_GEMINI
-        else (f"Claude ({_cfg.CLAUDE_MODEL})" if use_claude and _cfg.USE_CLAUDE
-              else "Llama3 (local)")
-    )
+    _llm_label = f"Ollama ({_cfg.OLLAMA_MODEL})"
     log.info(f"  CSV:          {csv_path}")
     log.info(f"  MD:           {resolved_md}")
     log.info(f"  IEIS:         {ieis_path or '(não fornecido)'}")
@@ -396,11 +386,6 @@ def _build_parser() -> argparse.ArgumentParser:
              "Exemplo: --isometrico 'Figura 1 atualizada.jpg'",
     )
     parser.add_argument(
-        "--use-llama",
-        action="store_true",
-        help="Usa Llama3 local (Ollama) em vez de Gemini na Etapa 3. Para uso offline.",
-    )
-    parser.add_argument(
         "--resume-from",
         type=int,
         choices=[2, 3, 4, 5],
@@ -430,8 +415,6 @@ if __name__ == "__main__":
         ebp_path=args.ebp,
         isometrico_paths=args.isometrico,
         output_dir=args.output_dir,
-        use_claude=False,           # Claude desabilitado — usar Gemini ou Llama3
-        use_gemini=not args.use_llama,
         export_format=args.format,
         resume_from=args.resume_from,
         dry_run=args.dry_run,

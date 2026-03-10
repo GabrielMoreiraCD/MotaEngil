@@ -1,0 +1,440 @@
+=== SYSTEM ===
+Você é engenheiro de materiais especialista em normas técnicas Petrobras.
+Sua tarefa é identificar materiais, consumíveis e insumos NECESSÁRIOS para o serviço descrito, com base nos trechos de norma fornecidos.
+
+REGRAS:
+1. Identifique materiais mencionados ou REQUERIDOS pelos procedimentos descritos nos trechos.
+2. Inclua: eletrodos, arames de solda, tubos, flanges, juntas, parafusos, tintas, abrasivos,    reagentes END, EPIs de soldagem, gases de proteção.
+3. Para soldagem: identifique classificação AWS, processo (SMAW/GTAW/FCAW/GMAW).
+4. Para END: identifique consumíveis (penetrante, revelador, removedor).
+5. Para pintura: identifique tipo de tinta, abrasivo para jateamento, primer.
+6. Se o texto menciona um procedimento que REQUER um material específico, inclua esse material.
+7. Use null para campos não encontrados. NÃO invente códigos ASTM/AWS que não aparecem no texto.
+8. Retorne APENAS JSON válido (lista de objetos). Nenhum texto adicional.
+9. Se não houver materiais identificáveis nos trechos, retorne [].
+
+=== USER ===
+SERVIÇO: Parada - LP448 - 2"-F-B10S-200 Realizar preenchimento por solda | TAG: 2”-F-B10S-200 | Piping: não identificada | NPS: não identificado"
+TAREFAS: Isolar área; Pesquisar O2; Inibição de sensores; Medir explosividade; Gases tóxicos
+
+TRECHOS DA NORMA [N-0115]:
+[Seção 14.3]
+Tabela A.1 - Classes de Inspeção para Tubulações conforme ASME B31.3 “Fluid Service” ASME B31.3 / Material 
+(Nota 1) 
+P-No Classe de Pressão 
+Serviço 
+a Alta 
+Pressão 
+150# 
+300# 
+600# 
+900# 
+1500# 
+2500# Fluido Categoria D 
+Todos 
+I 
+--- 
+--- 
+--- 
+--- 
+--- 
+--- Aço carbono (Nota 2) 
+1 
+II 
+II 
+II 
+II 
+IV 
+IV 
+IV Aço C-1/2Mo e 1/2Cr-1/2Mo 
+3 
+II 
+II 
+II 
+II 
+IV 
+IV 
+IV Aço 1...2Cr-Mo 
+4 
+II 
+II 
+II 
+II 
+IV 
+IV 
+IV Aço 21/4...9Cr-Mo 
+5 
+II 
+II 
+II 
+II 
+IV 
+IV 
+IV Aço 9Cr-Mo-V 
+15E 
+IV 
+IV 
+IV 
+IV 
+IV 
+IV 
+IV 
+Aço inoxidável martensítico (tipo 
+410) 
+6 
+II 
+II 
+II 
+II 
+IV 
+IV 
+IV Aço inoxidável ferrítico (tipo 405) 
+7 
+II 
+II 
+II 
+II 
+IV 
+IV 
+IV Aço 21/4Ni 
+9A 
+II 
+II 
+II 
+II 
+IV 
+IV 
+IV Aço 31/2Ni 
+9B 
+II 
+II 
+II 
+II 
+IV 
+IV 
+IV Aço 5Ni 
+11A-SG2 
+IV 
+IV 
+IV 
+IV 
+IV 
+IV 
+IV Fluido Normal Aço 9Ni 
+11A-SG1 
+IV 
+IV 
+IV 
+IV 
+IV 
+IV 
+IV Aço inoxidável austenítico 
+8 
+II 
+II 
+II 
+II 
+IV 
+IV 
+IV Aço inoxidável duplex/superduplex 
+10H 
+II 
+II 
+II 
+II 
+IV 
+IV 
+IV Ligas de Níquel 
+41...45 
+II 
+II 
+II 
+II 
+IV 
+IV 
+IV Ligas de Cobre 
+31...35 
+II 
+II 
+--- 
+--- 
+--- 
+--- 
+--- 
+- Linhas de gás inflamável em 
+instalações marítimas/navais 
+Todos 
+II 
+II 
+IV 
+IV 
+IV 
+IV 
+IV - Linhas com hidrogênio (Nota 3) 
+Todos 
+III 
+III 
+IV 
+IV 
+IV 
+IV 
+IV Serviço a Temperatura Elevada 
+Todos 
+IV 
+IV 
+IV 
+IV 
+IV 
+IV 
+--- Fluido Categoria M 
+Todos 
+IV 
+IV 
+IV 
+IV 
+IV 
+IV 
+---
+
+---
+[Seção 8.4]
+8.4  Soldagem de Tubulações em Aço Liga com Cromo (“P-Number” 3, 4, 5 e 15) .................. 54
+
+---
+[Seção 1]
+Tabela E.3 – Classificação das Padronizações da PETROBRAS N-76 conforme NR-13, 
+ASME B31.3 e Anexo A desta Norma Serviço B31.3 Norma Classe de Observação Classificação Padronização Temp. mínima Temp. máxima inspeção desta Classificação 
+segundo NR-13 Segundo ASME Material do tubo Classe de pressão D Aa 
+125 
+0 
+80 
+AC Água clarificada, água de máquinas, água 
+industrial, água de incêndio, solução de 
+espuma em água. Nitrogênio, gases inertes, ar de serviço, 
+C Ab 
+125 
+0 
+80 
+AC 
+Água de resfriamento, água bruta. 
+D Ar e Nitrogênio para instrumentação. 
+C D 
+I 
+Nota 1 Ac 
+125 
+0 
+65 
+AC 
+Galvanizado Água Potável e sistema de dilúvio. 
+D Ad 
+125 
+0 
+80 
+AC c/ 
+Concreto Água salgada e solução de espuma em 
+água salgada. 
+D Ae 
+125 
+0 
+80 
+AC c/ Epoxi 
+Água salgada e solução de espuma em 
+água salgada. 
+D Água decationizada. 
+D Af 
+125 
+0 
+38 
+AC c/ 
+Ebonite Solução diluída de ácido sulfúrico e 
+hipoclorito de sódio. 
+D 
+N 
+II 
+- Ag 
+125 
+0 
+38 
+AC c/ Epoxi 
+Água deanionizada e desmineralizada. 
+D 
+D 
+I 
+Nota 1.
+
+---
+[Seção 1]
+Tabela E.3 - Classificação das Padronizações da PETROBRAS N-76 conforme NR-13, 
+ASME B31.3 e Anexo A desta Norma (Continuação) Serviço B31.3 Norma Classe de Observação Classificação Padronização Temp. mínima Temp. máxima inspeção desta segundo ASME Classificação 
+segundo NR-13 Material do tubo Classe de pressão Fa 
+900 
+0 
+400 
+AC 
+Processos gerais com HC, álcool. 
+B 
+N 
+II 
+Nota 2 
+Fb 
+900 
+0 
+400 
+AC 
+Água de alimentação de caldeira. 
+D 
+N 
+II 
+- 
+Fc 
+900 
+0 
+150 
+AC 
+Gases liquefeitos de petróleo, gás natural. 
+A 
+N 
+II 
+Nota 7 
+Fd 
+900 
+0 
+400 
+AC 
+Processos gerais com HC, álcool. 
+B 
+N 
+II 
+Nota 2 
+Ff 
+900 
+0 
+100 
+AC 
+Gases liquefeitos de petróleo, gás natural. 
+A 
+N 
+II 
+Nota 7 Hidrocarbonetos corrosivos 
+B N 
+II
+
+---
+[Seção 1]
+Tabela E.3 – Classificação das Padronizações da PETROBRAS N-76 conforme NR-13, 
+ASME B31.3 e Anexo A desta Norma (Continuação) Serviço B31.3 Norma Classe de Observação Classificação Padronização Temp. mínima Temp. máxima inspeção desta segundo ASME Classificação 
+Segundo NR-13 Material do tubo Classe de pressão Ba 
+150 
+0 
+400 
+AC 
+Processos gerais com HC, álcool. 
+B 
+N 
+II 
+Nota 2 
+Nitrogênio 
+C 
+Nota 3 Bb 
+150 
+0 
+150 
+AC 
+Gás combustível, GLP, gás natural. 
+A 
+N 
+II 
+- 
+Soda cáustica (limitada temp. de 80 °C). 
+D 
+- Bc 
+150 
+0 
+260 
+AC 
+Hidrocarbonetos corrosivos 
+B 
+N 
+II 
+Nota 2 
+DEA (temperatura < 60 °C). 
+D 
+- Bd 
+150 
+0 
+260 
+AC 
+Hidrocarbonetos muito corrosivos, 
+condensado ácido, tocha ácida. 
+B 
+N 
+II 
+Nota 2 Be 
+150 
+0 
+180 
+AC 
+Enxofre líquido. 
+D 
+N 
+II 
+- Bf 
+150 
+0 
+400 
+AC 
+Vapor de baixa pressão, traço de vapor. 
+C 
+N 
+II 
+Nota 3 
+Condensado, água. 
+D 
+Bg 
+150 
+-45 
+300 
+AC 
+Gases liquefeitos de petróleo refrigerados. 
+A 
+N 
+III 
+Nota 4 Água clarificada, água de máquinas, água industrial, água de incêndio e solução de D 
+N 
+II 
+Nota 3 Bh 
+150 
+0 
+80 
+AC espuma em água. Ar de Serviço, Nitrogênio 
+C 
+Bj 
+150 
+0 
+80 
+AC 
+Álcool anidro ou hidratado, 
+B 
+N 
+II 
+- 
+Bm 
+150 
+-29 
+400 
+AC 
+Hidrocarbonetos em baixas temperaturas. 
+B 
+N 
+II 
+Nota 2 Hidrocarbonetos corrosivos 
+B N 
+II Bo 
+150 
+0 
+260 
+AC
+
+
+Identifique materiais e consumíveis. Retorne JSON:
+[{"tipo_material":"...","descricao_tecnica":"...","norma_origem":"...","secao_norma":"...","confianca":0.9}]

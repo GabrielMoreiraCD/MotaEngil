@@ -1,0 +1,136 @@
+=== SYSTEM ===
+Você é engenheiro de materiais especialista em normas técnicas Petrobras.
+Sua tarefa é identificar materiais, consumíveis e insumos NECESSÁRIOS para o serviço descrito, com base nos trechos de norma fornecidos.
+
+REGRAS:
+1. Identifique materiais mencionados ou REQUERIDOS pelos procedimentos descritos nos trechos.
+2. Inclua: eletrodos, arames de solda, tubos, flanges, juntas, parafusos, tintas, abrasivos,    reagentes END, EPIs de soldagem, gases de proteção.
+3. Para soldagem: identifique classificação AWS, processo (SMAW/GTAW/FCAW/GMAW).
+4. Para END: identifique consumíveis (penetrante, revelador, removedor).
+5. Para pintura: identifique tipo de tinta, abrasivo para jateamento, primer.
+6. Se o texto menciona um procedimento que REQUER um material específico, inclua esse material.
+7. Use null para campos não encontrados. NÃO invente códigos ASTM/AWS que não aparecem no texto.
+8. Retorne APENAS JSON válido (lista de objetos). Nenhum texto adicional.
+9. Se não houver materiais identificáveis nos trechos, retorne [].
+
+=== USER ===
+SERVIÇO: Parada - LP448 - 2"-F-B10S-200 Realizar preenchimento por solda | TAG: 2”-F-B10S-200 | Piping: não identificada | NPS: não identificado"
+TAREFAS: Isolar área; Pesquisar O2; Inibição de sensores; Medir explosividade; Gases tóxicos
+
+TRECHOS DA NORMA [N-0279]:
+[Seção 1]
+rios, revestim mento de b) peso p próprio do e
+ão contra-fog o com intern
+mas, tubulaçã nos, isolame
+ão e fluidos d equipamento
+go, plataform
+bulação com ação; ento, refratár
+de operação;
+ido de opera s plataformas isolamento t
+s segundo o térmico e flu
+3.1.2.2; róprio da tub
+acidental das
+ões; operação (“su urge”, aríete s); devida aos im
+ões de tempe mpactos caus
+eratura segun sados pelos 
+ndo o 3.1.2.1 fluidos em o
+10; proteçã
+c) peso pr
+d) carga a
+e) vibraçõ
+f) carga d
+g) variaçõ
+h) vento. teriais e Ten nsões Admi issíveis s e parafuso os, bem com mo suas tens ões admissí íveis devem obedecer s para estrut
+mas citadas n turas, rebites
+na Seção 2. da-se a utiliz erfis de abas s paralelas e em substituiç ção de perfis s de abas
+
+---
+[Seção 3.2]
+3.2  Materiais e Tensões Admissíveis........................................................................................... 7
+
+---
+[Seção 50]
+Ver Detalhe 1 Corrimão tubo de aço
+ galvanizado DN- 2"- SCH 40 L2 1/2" x 2 1/2" x 1/4 30° 5 30° 30° 5 5 ou 55 Detalhe "1" 28 700
+400 3 Chapa 1/8" Para as extremidades do corrimão fixação das colunas
+de oficina para CH. de
+Parafusos 5/8" ou solda
+
+---
+[Seção 75]
+2 40 Planta 1 Furo 9/16" A A Furo 9/16" (2) parafusos 1/2" 15 5 7 Corte "A-A" 37 5
+7 15 1 6 2 Detalhe "A" 2
+4 Planta B B
+8 8 15 35 55 Corte "B-B" 7 Detalhe "B"
+
+---
+[Seção 5.5]
+5.5  Recomendações de Projeto para Construção e Montagem................................................ 12 Anexo A - Figuras.................................................................................................................................. 13 Figura
+
+---
+[Seção 5]
+5 / 16"
+(Típico) Elevação "A-A" Raio "X" A A "X" do equipamento C L Planta A do
+Tubo D
+B turco Ø Circ.
+de
+paraf. 3" 2"
+
+---
+[Seção 75]
+Tipos 1, 2 e 3 Tipos 4 e 5 6 210 C C Q
+P
+P
+Q Q
+P
+P
+Q A Ø Ver Nota 2 Ø Ver Nota 2 Q 1/2" S Q
+8
+8 S B B S S Q Q 8 A Tipos 6 e 7
+Tipos 8 e 9 C C D
+D Q
+Q P
+P A Ø Ver Nota 2 A Q 8 S 8
+D B B D S Q Ø Ver Nota 2 Chapa base I Tipo S A B C P
+Q _
+D 6" 380 1 3/4" 50 140 380 140 _ 50 2 8" 380 3/4" 165 430 140 _ 50 10" 1" 190 3 380 480 140 _ 50 6" 360 1" 130 4 360 130 _ 50 150 8" 400 1" 5 400 150
+_ 3/4" 50 6 130 6" 260 130 360 _ 3/4" 50 150 8" 300 150 7 400 125 75
+_ 50 8 250
+6" 250 1/2" _ 9
+300 150 100 50 8"
+300 1/2"
+
+---
+[Seção 45]
+45 45 Furo alongado 9/16" x 32 A 70 L - 3" x 3" x 5/16" 50 B L - 5" x 3" x 3/8" Furo 15/16" parafuso 7/8" fabricante do
+Fornecido pelo equipamento 44 44 Furo  9/16" Chapa 1/4" 76 Corte "B-B"
+
+---
+[Seção 4.1.9]
+4.1.9 Nota 
+Revisado 3.1.2.3 
+Revisado 3.1.2.6 
+Revisado Figura A.2 
+Revisado Figura A.5 
+Revisado
+
+---
+[Seção 5.1]
+REV. G Partes Atingidas 
+Descrição da Alteração 4.1 
+Revisado 4.1.2 
+Incluído 4.1.3 
+Incluído 4.1.4. 
+Incluído
+
+---
+[Seção 4.4]
+4.4  Proteção Anti-Corrosiva ....................................................................................................... 10
+
+---
+[Seção 4.1]
+4.1  Facilidades Operacionais e de Manutenção.......................................................................... 7
+
+
+Identifique materiais e consumíveis. Retorne JSON:
+[{"tipo_material":"...","descricao_tecnica":"...","norma_origem":"...","secao_norma":"...","confianca":0.9}]

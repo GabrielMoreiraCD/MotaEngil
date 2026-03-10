@@ -4,7 +4,7 @@ schemas.py - Define os modelos de dados para a triagem de serviços, utilizando 
 Este módulo contém a definição da classe `EscopoTriagem`, que representa a estrutura de dados necessária para a triagem de serviços. 
 Cada campo é descrito com detalhes para garantir clareza e consistência na coleta de informações no documento inicial.
 '''
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 
 
@@ -24,6 +24,14 @@ class IEISEspecificacoes(BaseModel):
     classe_tubo: Optional[str] = Field(default=None, description="Classe do tubo (Classe I, II, III)")
     pre_aquecimento_min_C: Optional[str] = Field(default=None, description="Temperatura mínima de pré-aquecimento em °C")
     pwht_requerido: Optional[str] = Field(default=None, description="Pós-aquecimento (PWHT) requerido? Sim/Não")
+
+    @field_validator("processo_soldagem", "metal_adicao", "classificacao_aws", "material_base_tubo", "material_base_acessorios", mode="before")
+    @classmethod
+    def _join_if_list(cls, v):
+        """LLMs locais às vezes retornam listas em vez de strings — join automático."""
+        if isinstance(v, list):
+            return ", ".join(str(i) for i in v if i)
+        return v
 
 
 class SpoolItem(BaseModel):

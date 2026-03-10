@@ -1,0 +1,191 @@
+=== SYSTEM ===
+Você é engenheiro de materiais especialista em normas técnicas Petrobras.
+Sua tarefa é identificar materiais, consumíveis e insumos NECESSÁRIOS para o serviço descrito, com base nos trechos de norma fornecidos.
+
+REGRAS:
+1. Identifique materiais mencionados ou REQUERIDOS pelos procedimentos descritos nos trechos.
+2. Inclua: eletrodos, arames de solda, tubos, flanges, juntas, parafusos, tintas, abrasivos,    reagentes END, EPIs de soldagem, gases de proteção.
+3. Para soldagem: identifique classificação AWS, processo (SMAW/GTAW/FCAW/GMAW).
+4. Para END: identifique consumíveis (penetrante, revelador, removedor).
+5. Para pintura: identifique tipo de tinta, abrasivo para jateamento, primer.
+6. Se o texto menciona um procedimento que REQUER um material específico, inclua esse material.
+7. Use null para campos não encontrados. NÃO invente códigos ASTM/AWS que não aparecem no texto.
+8. Retorne APENAS JSON válido (lista de objetos). Nenhum texto adicional.
+9. Se não houver materiais identificáveis nos trechos, retorne [].
+
+=== USER ===
+SERVIÇO: Parada - LP448 - 2"-F-B10S-200 Realizar preenchimento por solda | TAG: 2”-F-B10S-200 | Piping: não identificada | NPS: não identificado"
+TAREFAS: Isolar área; Pesquisar O2; Inibição de sensores; Medir explosividade; Gases tóxicos
+
+TRECHOS DA NORMA [N-0133]:
+[Seção 5.3.2.2]
+5.3.2.2  Os consumíveis de soldagem ou a combinação dos mesmos (eletrodos, arame, fluxo, onde 
+aplicável) devem ser do mesmo tipo e marca comercial dos empregados na qualificação do 
+procedimento.
+
+---
+[Seção 5.6.5.1]
+Tabela 16 - Eletrodo Revestido, Vareta e Arame Sólido para Soldagem de Aços 
+Inoxidáveis Superausteníticos Material Espec. Eletrodo revestido Espec. Eletrodo nu e vareta tipo AWS (SMAW) AWS (GMAW / GTAW) Classificação AWS 
+Classificação AWS Preferida 
+Alternativa 
+Preferida 
+Alternativa 317LMN (4- 5Mo) 
+5.11 
+ENiCrMo-3 E317LMN 
+ENiCrMo-10 
+5.14 
+ERNiCrMo-3 ER317LMN 
+ERNiCrMo-10 5.11 5.4 ENiCrMo-3 
+E385Mod (↑Mo) 
+E385 
+5.14 5.9 
+ERNiCrMo-3 
+ER385 904L 
+(4,5Mo)
+(NOTAS 1 e 2) 254SMO 5.11 
+ENiCrMo-3 
+ENiCrMo-4 
+ENiCrMo-10 
+5.14 
+ERNiCrMo-3 
+ERNiCrMo-4 
+ERNiCRMo-10 UNS 
+S31254 25-6MO 5.11 
+ENiCrMo-3 
+ENiCrMo-4 
+ENiCrMo-10 
+5.14 
+ERNiCrMo-3 
+ERNiCrMo-4 
+ENiCRMo-10 UNS
+N08926 654SMO 5.11 
+ENiCrMo-3 
+ENiCrMo-4 
+ENiCrMo-10 
+5.14 
+ERNiCrMo-3 
+ERNiCrMo-4 
+ERNiCRMo-10 UNS 
+S32654
+
+---
+[Seção 5.14.6]
+Tabela 32 - Metais de Adição para Revestimento Depositado por Soldagem - “Weld Overlay” - em Chapa Base de Aços-Carbono ou Aço Baixa Liga em Equipamentos que não Requerem TTPS Processo SMAW/GTAW/GMAW/SAW/ESW Classificação AWS Especificação AWS Tipo de material do revestimento desejado Camada de amanteigamento Camada de acabamento (ver Nota 2) (ver Nota 2) E NiCrFe-2/3, ER NiCr-3 E NiCrFe 2/ 3, ER NiCr-3 405/410S A5.11/A5.11M / A5.14/A5.14M / A5.4/A5.4M / E/ER 309/309L E/ER 309/309L A5.9/A5.9M E NiCrFe-2/ 3, ER NiCr-3 E NiCrFe-2/ 3, ER NiCr-3 430 E/ER 309/309L A5.11/A5.11M / A5.14/A5.14M / A5.4/A5.4M / E/ER 309/309L E/ER 430 A5.9/A5.9M E NiCrFe-2/ 3, ER NiCr-3 E NiCrFe-2/ 3, ER NiCr-3 410 A5.11/A5.11M / A5.14/A5.14M / A5.4/A5.4M / E/ER 309/309L E/ER 309/309L E/ER 410/ 410NiMo A5.9/A5.9M 304 A5.4/A5.4M / A5.9/A5.9M E/ER 309/309L E/ER 308/308L 304L A5.4/A5.4M / A5.9/A5.9M E/ER309L E/ER 308L 316/317 A5.4/A5.4M / A5.9/A5.9M E/ER309LMo/309Mo E/ER 316L/317L 316L A5.4/A5.4M / A5.9/A5.9M E/ER 309LMo E/ER 316L/317L 317L A5.4/A5.4M / A5.9/A5.9M E/ER 309LMo E/ER 317L/385 321/347 A5.4/A5.4M / A5.9/A5.9M E/ER309L/309Nb E/ER 347 904L E/ER 309LMo//NiCrMo3 E/ER 385/NiCrMo-3 A5.11/A5.11M / A5.14/A5.14M / A5.4/A5.4M / A5.9/A5.9M Duplex A5.4/A5.4M / A5.9/A5.9M E/ER 309LMo E/ER 2595 Alloy 200 (Ni) A5.11/A5.11M / A5.14/A5.14M E/ER Ni-1 E/ER Ni-1 Alloy 400(Ni-Cu) A5.11/A5.11M / A5.14/A5.14M E/ER Ni-1/ NiCu-7 E/ER NiCu-7 A5.11/A5.11M / Alloy 600/800(NiCrFe) A5.14/A5.14M E NiCrFe-2, ER NiCr-3 E NiCrFe-2, ER NiCr-3 Hastelloy ®C-276 A5.11/A5.11M / A5.14/A5.14M E/ER NiCrMo-4 E/ER NiCrMo-4 Alloy 625(NiCrMo) A5.11/A5.11M / A5.14/A5.14M E/ER NiCrMo-3 E/ER NiCrMo-3 Cu-Ni (Nota 1) A5.11/A5.11M / A5.14/A5.14M E/ER Ni-1 E/ER Ni-1/ NiCu-7 Bronze alumínio A5.6/A5.6M / (Nota 1) A5.7/A5.7M E/ERCuAl-A2 E/ERCuAl-A2
+
+---
+[Seção 5.14.6]
+Tabela 33 - Metais de Adição para Revestimento Depositado por Soldagem - “Weld Overlay” - em Chapa Base de Aços-Carbono ou Aço Baixa Liga em Equipamentos que Requerem TTPS Processo SMAW/GTAW/GMAW/SAW/ESW Classificação AWS Especificação AWS Tipo de material do revestimento desejado Camada de amanteigamento Camada de acabamento (ver Nota 2) (ver Nota 2) E NiCrFe-2, ER NiCr-3 E NiCrFe- 2, ER NiCr-3 405/410S A5.11/A5.11M / A5.14/A5.14M / A5.4/A5.4M / E/ER 309L E/ER 309L A5.9/A5.9M E NiCrFe-2, ER NiCr-3 E NiCrFe-2/ 3, ER NiCr-3 430 E/ER 309L A5.11/A5.11M / A5.14/A5.14M / A5.4/A5.4M / E/ER 309L E/ER 430 A5.9/A5.9M E NiCrFe-2, ER NiCr-3 E NiCrFe-2, ER NiCr-3 410 A5.11/A5.11M / A5.14/A5.14M / A5.4/A5.4M / E/ER 309L E/ER 410 / 410NiMo (Nota 1) E/ER 309L E/ER 410 / 410NiMo A5.9/A5.9M 304 - Não aplicável Não aplicável 304L A5.4/A5.4M / A5.9/A5.9M E/ER 309L E/ER 308L 316/317 - Não aplicável Não aplicável 316L A5.4/A5.4M / A5.9/A5.9M E/ER 309LMo E/ER 316L/317L 317L A5.4/A5.4M / A5.9/A5.9M E/ER 309LMo E/ER 317L 321/347 A5.4/A5.4M / A5.9/A5.9M E/ER 309L/309Nb E/ER 347 904L - Não aplicável Não aplicável Alloy 200 (Ni) A5.11/A5.11M / A5.14/A5.14M E/ER Ni E/ER Ni-1 Alloy 400(Ni-Cu) A5.11/A5.11M / A5.14/A5.14M E/ER Ni-1/ NiCu-7 E/ERNiCu-7 A5.11/A5.11M / Alloy 600/800(NiCrFe) A5.14/A5.14M E NiCrFe-2, ER NiCr-3 E NiCrFe-2, ER NiCr-3 Hastelloy® C-276 A5.11/A5.11M / A5.14/A5.14M E/ER NiCrMo-4 E/ER NiCrMo-4 A5.11/A5.11M / Alloy 625(NiCrMo) A5.14/A5.14M E/ER NiCrMo-3 E/ER NiCrMo-3 Cu-Ni - Não aplicável Não aplicável Bronze alumínio - Não aplicável Não aplicável
+
+---
+[Seção 5.9.4.5]
+Tabela 23 - Eletrodos e Varetas para Aços Inoxidáveis Ferríticos Eletrodo revestido Eletrodo nu e vareta (SMAW) (GMAW / GTAW) Material Classificação AWS 
+Classificação AWS tipo Espec. 
+AWS Espec. 
+AWS Preferida 
+Alternativa (Nota 2) 
+Preferida 
+Alternativa (Nota 2) A5.4/ 
+A5.4M 
+E410 (Nota 1) 
+E409Nb 
+E410NiMo 405, 410S ENiCrMo-3 A5.9/ 
+A5.9M 
+ER410 (Nota 1) 
+ER409Nb 
+ER410NiMo 
+A5.11/ 
+A5.11M ENiCrFe-2 
+ 
+A5.14/ 
+A5.14M ERNiCr-3 
+ERNiCrMo-3 A5.4/ 
+A5.4M 
+E409Nb 
+ 
+A5.9/ 
+A5.9M 
+ER409Nb 409 ENiCrMo-3 ERNiCrMo-3 A5.11/ 
+A5.11M ENiCrFe-2 
+ 
+A5.14/ 
+A5.14M ERNiCr-3 A5.4/ 
+A5.4M 
+E430 
+E430Nb 
+A5.9/ 
+A5.9M 
+ER430 430 ENiCrMo-3 ERNiCrMo-3 A5.11/ 
+A5.11M ENiCrFe-2 
+ 
+A5.14/ 
+A5.14M ERNiCr-3 ENiCrMo-3 439 
+A5.11/ 
+A5.11M ENiCrFe-2 
+ 
+A5.14/ 
+A5.14M ERNiCr-3 
+ERNiCrMo-3 
+ER439 444 e ≥ 
+25 %Cr 
+(446, 447, A5.11/ 
+A5.11M ENiCrMo-3 
+ENiCrFe-2 
+ 
+A5.14/ 
+A5.14M ERNiCr-3 
+ERNiCrMo-3 448) A5.22/ 
+A5.22M 
+E410TX-X 
+E409TX-X 
+E409NbTX-X 405, 410S ENiCrMo3Tx-y A5.9/ 
+A5.9M 
+ER410 
+ER409Nb 
+ER410NiMo 
+A5.34/ 
+A5.34M ENiCr3Tx-y 
+ 
+A5.14/ 
+A5.14M ERNiCr-3 
+ERNiCrMo-3 A5.22/ 
+A5.22M 
+E409TX-X 
+E409NbTX-X 
+A5.9/ 
+A5.9M 
+ER409Nb 409 ENiCrMo3Tx-y A5.34/ 
+A5.34M ENiCr3Tx-y 
+ 
+A5.14/ 
+A5.14M ERNiCr-3 
+ERNiCrMo-3 A5.22/ 
+A5.22M 
+E430TX-X 
+E430NbTX-X 
+A5.9/ 
+A5.9M 
+ER430 
+ER430Nb 430 ENiCrMo3Tx-y A5.34/ 
+A5.34M ENiCr3Tx-y 
+ 
+A5.14/ 
+A5.14M ERNiCr-3 
+ERNiCrMo-3 ENiCrMo3Tx-y 439 
+A5.34/ 
+A5.34M ENiCr3Tx-y 
+ 
+A5.14/ 
+A5.14M ERNiCr-3 
+ERNiCrMo-3 444 e ≥ 
+25 %Cr (446, A5.34/ 
+A5.34M ENiCrMo3Tx-y 
+ENiCr3Tx-y 
+ 
+A5.14/ 
+A5.14M ERNiCr-3 
+ERNiCrMo-3 447, 448)
+
+
+Identifique materiais e consumíveis. Retorne JSON:
+[{"tipo_material":"...","descricao_tecnica":"...","norma_origem":"...","secao_norma":"...","confianca":0.9}]

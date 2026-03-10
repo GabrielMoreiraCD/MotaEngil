@@ -143,6 +143,7 @@ class BOMGenerator:
                 categoria=item.categoria_catalogo,
                 source_file_catalogo=item.source_file,
                 observacoes=observacoes,
+                fonte=getattr(item, "fonte", "rag_normas"),
             ))
 
         return line_items
@@ -258,9 +259,9 @@ class BOMGenerator:
         col_headers = [
             "Item", "Código", "Descrição", "Especificação Técnica",
             "DN (pol.)", "Qtd.", "Unid.", "Qtd. Est.?",
-            "Categoria", "Observações",
+            "Categoria", "Fonte", "Observações",
         ]
-        col_widths = [6, 18, 40, 35, 10, 8, 8, 10, 25, 40]
+        col_widths = [6, 18, 40, 35, 10, 8, 8, 10, 25, 14, 40]
 
         for col_idx, (header, width) in enumerate(zip(col_headers, col_widths), start=1):
             cell = ws.cell(row=row, column=col_idx, value=header)
@@ -275,8 +276,16 @@ class BOMGenerator:
 
         # Linhas de dados
         alt_fill = PatternFill("solid", fgColor="EEF2FF")
+        ieis_fill = PatternFill("solid", fgColor="E8F5E9")   # verde claro → ieis_direto
+        ebp_fill  = PatternFill("solid", fgColor="E3F2FD")   # azul claro  → ebp_spool
         for item in bom.itens:
-            fill = alt_fill if item.item_numero % 2 == 0 else PatternFill()
+            fonte_item = getattr(item, "fonte", "rag_normas")
+            if fonte_item == "ieis_direto":
+                fill = ieis_fill
+            elif fonte_item == "ebp_spool":
+                fill = ebp_fill
+            else:
+                fill = alt_fill if item.item_numero % 2 == 0 else PatternFill()
             row_data = [
                 item.item_numero,
                 item.codigo_material or "",
@@ -287,6 +296,7 @@ class BOMGenerator:
                 item.unidade,
                 "SIM" if item.quantidade_estimada else "NÃO",
                 item.categoria,
+                getattr(item, "fonte", "rag_normas"),
                 item.observacoes or "",
             ]
             for col_idx, value in enumerate(row_data, start=1):

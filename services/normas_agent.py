@@ -3,13 +3,16 @@ normas_agent.py — Etapa 3: Consulta de Normas Técnicas Petrobras
 =================================================================================
 Dado um EscopoTriagemUnificado (saída da Etapa 2), consulta cada norma aplicável
 no Qdrant (coleção normas_tecnicas_publicas_v2) e extrai especificações de materiais
-e consumíveis usando Claude (padrão) ou Llama3 (fallback offline).
+e consumíveis usando Gemini (padrão) ou Llama3 (fallback offline).
 
-Fluxo por norma:
-  1. Gera 3 queries direcionadas com base no tipo de serviço e piping class
+Fluxo:
+  0. Injeta specs diretas do IEIS (eletrodo, NDT) e EBP (tubo/flange do spool) — bypass Qdrant
+  0b. Injeta specs visuais de isométricos (Qwen2.5-VL) quando disponíveis
+  1. Para cada norma: gera queries direcionadas (piping class, tipo serviço)
   2. Recupera chunks via query_with_norma_context() com filtro norma_id + tipo
-  3. Envia chunks ao LLM com prompt de extração estruturada (skeleton JSON)
-  4. Valida output com Pydantic → EspecificacaoMaterial
+  3. Envia chunks ao LLM (Gemini > Llama3) com prompt de extração estruturada (skeleton JSON)
+  4. Filtra lixo (figuras, revisões de norma, atividades de planejamento)
+  5. Valida output com Pydantic → EspecificacaoMaterial
 
 Saída: NormasConsultaResult (persistida em etapa3_normas_result.json)
 """
@@ -28,6 +31,7 @@ from core.config import config
 from core.schemas import (
     EscopoTriagemUnificado,
     EspecificacaoMaterial,
+    IsometricExtractedSpec,
     NormasConsultaResult,
 )
 from services.rag_engine import query_with_norma_context
@@ -159,14 +163,29 @@ def _extract_json_robust(text: str) -> list:
 # ─────────────────────────────────────────────────────────────────────────────
 _NORMAS_POR_TIPO: list[tuple[list[str], list[str]]] = [
     # (keywords no título/tarefas, normas inferidas)
-    (["solda", "soldagem", "weld", "reparo com solda"],           ["N-1852", "N-0133"]),
+    # --- Soldagem e reparo com solda ---
+    (["solda", "soldagem", "weld", "reparo com solda", "preenchimento por solda",
+      "substituir", "substituição", "trecho", "spool", "fabricação spool"],  ["N-1852", "N-0133"]),
+    # --- Pintura / revestimento ---
     (["pintura", "revestimento", "paint"],                         ["N-2879", "N-1272"]),
-    (["end", "ensaio", "penetrante", "ultrassom", "radiografia"],  ["N-2008"]),
-    (["tubulação", "tubo", "piping", "spool", "fabricar", "fabricação"], ["N-0116", "N-2595"]),
+    # --- END / ensaios não destrutivos ---
+    (["end", "ensaio", "penetrante", "ultrassom", "radiografia",
+      "inspeção pós-solda", "líquido penetrante"],                 ["N-2008", "N-1424"]),
+    # --- Flanges, juntas, parafusos de tubulação de processo ---
+    # NOTA: N-0116 tem specs de flanges/juntas, mas também de estações de vapor.
+    # Usar apenas quando keyword for específica de flange/junta, não genérico "tubulação".
+    (["flange", "flanges", "junta espiralada", "parafuso estojo",
+      "flangeamento", "gasket"],                                   ["N-0116"]),
+    # --- Válvulas ---
     (["válvula", "valvula"],                                       ["N-0116"]),
-    (["flanges", "flange"],                                        ["N-0116"]),
+    # --- Inspeção geral ---
     (["inspecao", "inspeção", "inspection"],                       ["N-2008", "N-1424"]),
-    (["montagem", "instalacao", "instalar"],                       ["N-0116"]),
+    # --- Montagem/instalação ---
+    (["montagem", "instalacao", "instalar"],                       ["N-0133"]),
+    # REMOVIDO: ["tubulação", "tubo", "piping", "spool"] → N-0116, N-2595
+    # Motivo: N-0116 retorna chunks de estação de suprimento de vapor (DFU-12/13),
+    # N-2595 é norma de SIS (Safety Instrumented Systems) — ambas irrelevantes para
+    # substituição de tubulação de processo. Usar N-1852 + N-0133 para soldagem.
 ]
 
 
@@ -212,14 +231,21 @@ def _chunks_to_text(chunks: list[dict], max_chars: int = 12000) -> str:
 # NormasConsultationAgent
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Normas críticas para piping — forçar Gemini mesmo com --use-llama
+_NORMAS_CRITICAS = {"N-0115", "N-0116", "N-1852"}
+
+
 class NormasConsultationAgent:
     """
     Consulta normas técnicas Petrobras no Qdrant e extrai especificações
-    de materiais usando LLM (Claude ou Llama3 fallback).
+    de materiais usando LLM (Gemini padrão, Llama3 fallback offline).
     """
 
-    def __init__(self, use_claude: bool = True):
-        self.use_claude = use_claude and config.USE_CLAUDE and bool(config.ANTHROPIC_API_KEY)
+    def __init__(self, use_claude: bool = False, use_gemini: bool = True):
+        # Gemini: padrão quando GEMINI_KEY disponível (substitui Claude)
+        self.use_gemini = config.USE_GEMINI and bool(config.GEMINI_KEY)
+        # Claude: legado, usado apenas se Gemini indisponível e use_claude=True
+        self.use_claude = (not self.use_gemini) and use_claude and config.USE_CLAUDE and bool(config.ANTHROPIC_API_KEY)
 
         # Embedder para queries no Qdrant
         log.info("NormasConsultationAgent: carregando embedder...")
@@ -231,16 +257,22 @@ class NormasConsultationAgent:
             api_key=config.QDRANT_API_KEY,
         )
 
-        # LLM client
-        if self.use_claude:
+        # LLM client — prioridade: Gemini > Claude > Llama3
+        self.gemini = None
+        self.claude = None
+        self.llm = None
+
+        if self.use_gemini:
+            from google import genai as _genai
+            self.gemini = _genai.Client(api_key=config.GEMINI_KEY)
+            log.info(f"NormasConsultationAgent: usando Gemini ({config.GEMINI_MODEL})")
+        elif self.use_claude:
             from core.models import get_claude_client
             self.claude = get_claude_client()
-            self.llm = None
             log.info(f"NormasConsultationAgent: usando Claude ({config.CLAUDE_MODEL})")
         else:
             from core.models import get_llm
             self.llm = get_llm()
-            self.claude = None
             log.info("NormasConsultationAgent: usando Llama3 (fallback offline)")
 
     # ── Query generation ──────────────────────────────────────────────────────
@@ -281,6 +313,35 @@ class NormasConsultationAgent:
             queries.append(
                 f"inspeção visual critérios aceitação soldagem {norma_id} {piping_class}"
             )
+        # Detecta substituição de tubulação / fabricação de spool
+        is_pipe_replacement = any(
+            kw in (tarefas_str + escopo.titulo_servico).lower()
+            for kw in ["substituir", "substituição", "trecho", "spool", "fabricar spool",
+                       "fabricação spool", "trocando trecho"]
+        )
+
+        if is_pipe_replacement:
+            if nps:
+                queries.append(
+                    f"tubo aço carbono API 5L Gr B {nps} polegadas SCH 40 {piping_class}"
+                )
+                queries.append(
+                    f"flange pescoço aço carbono ASTM A105 classe 150 {nps} polegadas"
+                )
+                queries.append(
+                    f"junta espiralada AISI 316 ASME B16.20 classe 150 {nps} polegadas"
+                )
+                queries.append(
+                    f"parafuso estojo ASTM A193 B7 Zn-Ni {nps} flange classe 150"
+                )
+            else:
+                queries.append(
+                    f"tubo aço carbono API 5L Gr B SCH 40 {piping_class} especificação ASTM"
+                )
+                queries.append(
+                    f"flange pescoço aço carbono ASTM A105 ASME B16.5 classe 150"
+                )
+
         if not queries:
             # Fallback genérico
             queries.append(
@@ -288,7 +349,7 @@ class NormasConsultationAgent:
             )
 
         # Sempre adiciona query de tubo/linha para capturar specs do material base
-        if nps:
+        if nps and not is_pipe_replacement:
             queries.append(
                 f"tubulação tubo aço carbono {nps} polegadas {piping_class} "
                 f"especificação ASTM {norma_id}"
@@ -372,6 +433,51 @@ class NormasConsultationAgent:
             log.error(f"Erro na chamada Claude para norma {norma_id}: {e}")
             return []
 
+    def _extract_with_gemini(
+        self,
+        norma_id: str,
+        chunks: list[dict],
+        escopo: EscopoTriagemUnificado,
+    ) -> list[dict]:
+        """Envia chunks ao Gemini e retorna lista de dicts de especificações."""
+        piping_class = _extract_piping_class(escopo.tag_linha_principal or "")
+        nps = _extract_nps(escopo.tag_linha_principal or "")
+        chunks_text = _chunks_to_text(chunks, max_chars=15000)
+
+        if not chunks_text.strip():
+            return []
+
+        prompt = (
+            SYSTEM_PROMPT_CLAUDE + "\n\n" +
+            PROMPT_TEMPLATE_CLAUDE.format(
+                titulo_servico=escopo.titulo_servico or "",
+                tag_linha_principal=escopo.tag_linha_principal or "",
+                piping_class=piping_class or "não identificada",
+                nps=nps or "não identificado",
+                tarefas="; ".join((escopo.tarefas_execucao or [])[:5]),
+                norma_id=norma_id,
+                chunks_text=chunks_text,
+                skeleton=SKELETON_SPECS,
+            )
+        )
+
+        try:
+            from google.genai import types as _gtypes
+            response = self.gemini.models.generate_content(
+                model=config.GEMINI_MODEL,
+                contents=prompt,
+                config=_gtypes.GenerateContentConfig(
+                    max_output_tokens=4096,
+                    temperature=0.1,
+                ),
+            )
+            raw_text = response.text
+            log.debug(f"  [Gemini] {norma_id}: {len(raw_text)} chars retornados")
+            return _extract_json_robust(raw_text)
+        except Exception as e:
+            log.error(f"Erro na chamada Gemini para norma {norma_id}: {e}")
+            return []
+
     def _extract_with_llama(
         self,
         norma_id: str,
@@ -379,7 +485,8 @@ class NormasConsultationAgent:
         escopo: EscopoTriagemUnificado,
     ) -> list[dict]:
         """Envia chunks ao Llama3 via Ollama e retorna lista de dicts."""
-        chunks_text = _chunks_to_text(chunks, max_chars=6000)  # contexto menor
+        # Limita contexto para Llama3 — modelos locais não aguentam >6k chars sem timeout
+        chunks_text = _chunks_to_text(chunks[:8], max_chars=5000)  # max 8 chunks
         if not chunks_text.strip():
             return []
 
@@ -397,11 +504,76 @@ class NormasConsultationAgent:
             log.error(f"Erro no Llama3 para norma {norma_id}: {e}")
             return []
 
+    @staticmethod
+    def _is_valid_material_spec(item: dict) -> bool:
+        """
+        Filtra specs que são lixo de índice de norma, atividades de planejamento ou
+        referências a figuras/revisões — não são materiais físicos procuráveis.
+
+        Problemas concretos detectados:
+        - N-0381: LLM extraiu "Figura A.1", "REV. H Partes Atingidas" do índice de revisões
+        - N-0133: LLM extraiu "Aços Inoxidáveis Austeníticos" sem descrição útil
+        - N-2595/N-0116: LLM extraiu "plano de condicionamento do SIS" como material
+        """
+        # Keywords que indicam lixo de índice de norma / histórico de revisões
+        INVALID_TIPO_KEYWORDS = [
+            "figura", "figuras", "figura a.", "figura a1", "figura a2",
+            "figura a3", "figura a4", "figura a5", "figura a6", "figura a7",
+            "figura a8", "figura a9",
+            "rev.", "revisão", "revisao", "partes atingidas",
+            "índice", "indice", "índice de revisões", "descrição da alteração",
+            "revalidação", "revalidacao", "incluída", "incluida", "revisada",
+            "apêndice", "apendice", "anexo",
+        ]
+        # Keywords que indicam atividade, não material
+        INVALID_ACTIVITY_KEYWORDS = [
+            "plano", "programa", "procedimento", "cronograma",
+            "elaborar", "deve ser elaborado", "fase de projeto",
+            "condicionamento", "rearme", "sif", "sis",
+            "relatório", "relatorio", "documento", "instrução",
+            "manutenção preventiva", "periodicidade", "testes comprovatórios",
+            "não se aplica", "nao se aplica",
+        ]
+        # Descrições genéricas que indicam que o LLM copiou cabeçalho de seção
+        GENERIC_DESCRIPTIONS = {
+            "figura relacionada à norma",
+            "figuras relacionadas à norma",
+            "revisão da norma",
+            "revisao da norma",
+            "partes atingidas",
+            "descrição da alteração",
+        }
+
+        tipo = (item.get("tipo_material") or "").lower().strip()
+        desc = (item.get("descricao_tecnica") or "").lower().strip()
+
+        # Rejeita se tipo começa com palavra de lixo
+        if any(tipo.startswith(kw) for kw in INVALID_TIPO_KEYWORDS):
+            log.debug(f"  [filtro] Tipo inválido descartado: '{item.get('tipo_material')}'")
+            return False
+
+        # Rejeita descrições genéricas exatas
+        if desc in GENERIC_DESCRIPTIONS:
+            log.debug(f"  [filtro] Descrição genérica descartada: '{desc}'")
+            return False
+
+        # Rejeita atividades/procedimentos
+        combined = tipo + " " + desc
+        if any(kw in combined for kw in INVALID_ACTIVITY_KEYWORDS):
+            log.debug(f"  [filtro] Atividade/procedimento descartado: tipo='{tipo}'")
+            return False
+
+        return True
+
     def _parse_specs(self, raw_items: list[dict], norma_id: str) -> list[EspecificacaoMaterial]:
         """Valida e converte dicts brutos para modelos Pydantic EspecificacaoMaterial."""
         specs = []
         for item in raw_items:
             if not isinstance(item, dict):
+                continue
+            # Filtra atividades/procedimentos que não são materiais físicos
+            if not self._is_valid_material_spec(item):
+                log.debug(f"  Spec descartada (não é material físico): {item.get('tipo_material')}")
                 continue
             # Remove sentinels "???"
             cleaned = {
@@ -463,9 +635,171 @@ class NormasConsultationAgent:
         normas_sem_resultado: list[str] = []
         total_chunks = 0
 
+        # ── INJEÇÃO 0a: Specs diretas do IEIS (bypass Qdrant — alta confiança) ──
+        ieis = getattr(escopo, "especificacoes_soldagem", None)
+        if ieis:
+            n_ieis_before = len(all_specs)
+            if ieis.metal_adicao:
+                all_specs.append(EspecificacaoMaterial(
+                    tipo_material="eletrodo_smaw",
+                    descricao_tecnica=(
+                        f"Eletrodo revestido {ieis.metal_adicao} para soldagem "
+                        f"{ieis.processo_soldagem or 'SMAW'} aço carbono "
+                        f"Classe {ieis.classe_tubo or 'II'}"
+                    ),
+                    norma_origem="IEIS",
+                    secao_norma="metal_adicao",
+                    especificacao_aws=ieis.classificacao_aws or ieis.metal_adicao,
+                    confianca=0.95,
+                    observacoes="Extraído diretamente do IEIS — alta confiança",
+                ))
+                log.info(f"  [IEIS direto] Eletrodo injetado: {ieis.metal_adicao}")
+
+            if "LP" in (ieis.ndt_requerido or []):
+                all_specs.append(EspecificacaoMaterial(
+                    tipo_material="consumivel_end",
+                    descricao_tecnica=(
+                        "Kit líquido penetrante END — penetrante fluorescente Tipo II, "
+                        "revelador não-aquoso, removedor/limpador"
+                    ),
+                    norma_origem="IEIS_NDT",
+                    secao_norma="ndt_requerido",
+                    confianca=0.85,
+                    observacoes="NDT LP requerido no IEIS",
+                ))
+                log.info("  [IEIS direto] Kit LP (líquido penetrante) injetado.")
+
+            if ieis.material_base_tubo and ieis.material_base_tubo not in ("EPS", "N/A", "???"):
+                log.info(f"  [IEIS] Material base do tubo identificado: {ieis.material_base_tubo}")
+
+            added = len(all_specs) - n_ieis_before
+            log.info(f"  [IEIS direto] {added} specs injetadas (bypass Qdrant)")
+
+        # ── INJEÇÃO 0b: Specs do spool list do EBP (tubo + flanges reais) ──────
+        spool_list = getattr(escopo, "spool_list", None) or []
+        if spool_list:
+            n_spool_before = len(all_specs)
+            for spool in spool_list:
+                dn = getattr(spool, "dn", None) or ""
+                sch = getattr(spool, "schedule", None) or "SCH 40"
+                mat = getattr(spool, "material_tubo", None) or "API 5L GrB"
+                spool_id = getattr(spool, "spool_id", None)
+                comprimento = getattr(spool, "comprimento_m", None)
+
+                # Normaliza: se schedule é piping class (ex: B10S), deduz SCH 40 para API 5L
+                if sch and re.match(r'^[A-Z]\d+[A-Z]+$', sch):
+                    log.debug(f"  [EBP] Schedule '{sch}' parece piping class — usando SCH 40")
+                    sch = "SCH 40"
+
+                if dn:
+                    all_specs.append(EspecificacaoMaterial(
+                        tipo_material="tubo_conducao",
+                        descricao_tecnica=(
+                            f"Tubo aço carbono {mat}, {dn}\", {sch}, ASME B36.10"
+                            + (f" — comprimento {comprimento} m" if comprimento else "")
+                        ),
+                        norma_origem="EBP_SPOOL",
+                        secao_norma="spool_list",
+                        diametro_nps=dn.replace('"', '').replace("\"", ""),
+                        schedule=sch,
+                        unidade="M" if comprimento else "UN",
+                        confianca=0.90,
+                        observacoes=f"Spool {spool_id}" if spool_id else None,
+                    ))
+
+                    # Injeta flange se spool as menciona
+                    fl_qty = getattr(spool, "flange_quantidade", None)
+                    fl_classe = getattr(spool, "flange_classe", None) or "150#"
+                    if fl_qty and fl_qty > 0:
+                        all_specs.append(EspecificacaoMaterial(
+                            tipo_material="flange_pescoço",
+                            descricao_tecnica=(
+                                f"Flange pescoço de solda ASTM A105, {dn}\", "
+                                f"{fl_classe}, ASME B16.5"
+                            ),
+                            norma_origem="EBP_SPOOL",
+                            secao_norma="spool_list",
+                            diametro_nps=dn.replace('"', ''),
+                            pressao_classe=fl_classe,
+                            confianca=0.88,
+                        ))
+
+            added = len(all_specs) - n_spool_before
+            log.info(f"  [EBP spool] {added} specs injetadas de {len(spool_list)} spool(s)")
+        else:
+            # Mesmo sem spool_list, injeta tubo/flange se piping class for conhecida
+            tag = escopo.tag_linha_principal or ""
+            piping_cls = _extract_piping_class(tag)
+            nps_val = _extract_nps(tag)
+            if nps_val and piping_cls:
+                log.info(f"  [EBP fallback] Sem spool_list, injetando tubo/flange genérico para {nps_val}\" {piping_cls}")
+                all_specs.append(EspecificacaoMaterial(
+                    tipo_material="tubo_conducao",
+                    descricao_tecnica=f"Tubo aço carbono API 5L GrB, {nps_val}\", SCH 40, ASME B36.10 — piping class {piping_cls}",
+                    norma_origem="ESCOPO_TAG",
+                    secao_norma="tag_linha_principal",
+                    diametro_nps=nps_val,
+                    schedule="SCH 40",
+                    confianca=0.70,
+                    observacoes="Estimado pela tag da linha — sem spool_list no EBP",
+                ))
+                all_specs.append(EspecificacaoMaterial(
+                    tipo_material="flange_pescoço",
+                    descricao_tecnica=f"Flange pescoço de solda ASTM A105, {nps_val}\", 150#, ASME B16.5",
+                    norma_origem="ESCOPO_TAG",
+                    secao_norma="tag_linha_principal",
+                    diametro_nps=nps_val,
+                    pressao_classe="150#",
+                    confianca=0.65,
+                    observacoes="Estimado pela tag da linha — piping class B10S padrão 150#",
+                ))
+                # Junta e parafuso também são parte obrigatória de qualquer flangeamento
+                all_specs.append(EspecificacaoMaterial(
+                    tipo_material="junta_espiralada",
+                    descricao_tecnica=f"Junta espiralada AISI 316/grafite, {nps_val}\", 150#, ASME B16.20",
+                    norma_origem="ESCOPO_TAG",
+                    secao_norma="tag_linha_principal",
+                    diametro_nps=nps_val,
+                    pressao_classe="150#",
+                    confianca=0.65,
+                ))
+                all_specs.append(EspecificacaoMaterial(
+                    tipo_material="parafuso_estojo",
+                    descricao_tecnica=f"Parafuso estojo ASTM A193 GrB7 Zn-Ni, {nps_val}\" flange 150#",
+                    norma_origem="ESCOPO_TAG",
+                    secao_norma="tag_linha_principal",
+                    diametro_nps=nps_val,
+                    pressao_classe="150#",
+                    confianca=0.65,
+                ))
+
+        # ── INJEÇÃO 0c: Specs visuais de isométricos (Qwen2.5-VL) ───────────────
+        iso_specs = getattr(escopo, "isometric_specs", None) or []
+        if iso_specs:
+            n_iso_before = len(all_specs)
+            for iso in iso_specs:
+                all_specs.append(EspecificacaoMaterial(
+                    tipo_material=iso.tipo_material,
+                    descricao_tecnica=iso.descricao_tecnica,
+                    norma_origem=f"ISOMETRICO:{iso.fonte_imagem}",
+                    secao_norma="isometrico_visual",
+                    diametro_nps=iso.diametro_nps,
+                    schedule=iso.schedule,
+                    unidade=iso.unidade,
+                    confianca=iso.confianca,
+                    observacoes=iso.notas,
+                ))
+            log.info(f"  [Isométrico visual] {len(all_specs) - n_iso_before} specs injetadas")
+
+        log.info(
+            f"  [Injeção direta] Total antes do Qdrant: {len(all_specs)} specs "
+            f"(IEIS + EBP + isométrico)"
+        )
+
         for norma_id in normas:
             log.info(f"  Consultando {norma_id}...")
             queries = self._build_queries(norma_id, escopo)
+            log.debug(f"    Queries geradas: {queries}")
             chunks = self._retrieve_chunks(norma_id, queries)
 
             if not chunks:
@@ -476,13 +810,22 @@ class NormasConsultationAgent:
             log.info(f"  {len(chunks)} chunks recuperados para {norma_id}")
             total_chunks += len(chunks)
 
-            if self.use_claude:
+            # Seleciona LLM: Gemini > Claude > Llama3 (normas críticas forçam Gemini)
+            use_gemini_for_this = self.use_gemini
+            if not use_gemini_for_this and norma_id in _NORMAS_CRITICAS and self.use_claude:
+                # Para normas críticas, tenta Gemini mesmo se configurado como Llama3
+                use_gemini_for_this = config.USE_GEMINI
+
+            if use_gemini_for_this and self.gemini:
+                raw_items = self._extract_with_gemini(norma_id, chunks, escopo)
+            elif self.use_claude and self.claude:
                 raw_items = self._extract_with_claude(norma_id, chunks, escopo)
             else:
                 raw_items = self._extract_with_llama(norma_id, chunks, escopo)
 
+            log.debug(f"    LLM retornou {len(raw_items)} items brutos para {norma_id}")
             specs = self._parse_specs(raw_items, norma_id)
-            log.info(f"  {len(specs)} especificações extraídas de {norma_id}")
+            log.info(f"  {len(specs)} especificações válidas extraídas de {norma_id}")
             all_specs.extend(specs)
 
         result = NormasConsultaResult(

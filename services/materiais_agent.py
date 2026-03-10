@@ -37,8 +37,9 @@ from core.schemas import (
 log = logging.getLogger(__name__)
 
 # Thresholds de score coseno para decisão de mapeamento
-SCORE_DIRECT_MATCH = 0.65   # Mapeamento direto sem disambiguation
-SCORE_PARTIAL_MATCH = 0.40  # Tenta disambiguation; abaixo → unmapped
+# Elevados para reduzir falsos positivos (anteriormente 0.65 / 0.40)
+SCORE_DIRECT_MATCH = 0.72   # Mapeamento direto sem disambiguation
+SCORE_PARTIAL_MATCH = 0.55  # Tenta disambiguation; abaixo → unmapped
 
 # Máximo de candidatos enviados ao LLM para disambiguation
 MAX_CANDIDATES_LLM = 5
@@ -48,15 +49,37 @@ MAX_CANDIDATES_LLM = 5
 # (nome do stem do arquivo XLSX = campo "categoria" no payload Qdrant)
 # ─────────────────────────────────────────────────────────────────────────────
 TIPO_MATERIAL_TO_CATEGORIA_HINTS: dict[str, list[str]] = {
+    # ── Tubos ──────────────────────────────────────────────────────────────────
     "tubo_reparo":        ["TUBO CONDUÇÃO", "TUBO DE CONDUÇÃO", "TUBO CARBONO", "TUBO INOX"],
+    "tubo_conducao":      ["TUBO CONDUÇÃO", "TUBO DE CONDUÇÃO", "TUBO CARBONO", "TUBO INOX"],
+    # ── Eletrodos e consumíveis de solda ──────────────────────────────────────
     "eletrodo_revestido": ["ELETRODO", "CONSUMIVEL", "CONSUMÍVEL", "SOLDA"],
+    "eletrodo_smaw":      ["ELETRODO", "CONSUMIVEL", "CONSUMÍVEL", "SOLDA"],
     "arame_solda":        ["ARAME", "CONSUMIVEL", "CONSUMÍVEL", "SOLDA"],
-    "consumivel_end":     ["ENSAIO", "INSPECAO", "INSPEÇÃO", "NDT", "LIQUIDO", "LÍQUIDO"],
+    # ── END ───────────────────────────────────────────────────────────────────
+    "consumivel_end":     ["ENSAIO", "INSPECAO", "INSPEÇÃO", "NDT", "LIQUIDO", "LÍQUIDO",
+                           "PENETRANTE", "REVELADOR", "REMOVEDOR"],
+    # ── Flanges ───────────────────────────────────────────────────────────────
     "flanges":            ["FLANGE"],
-    "valvula":            ["VÁLVULA", "VALVULA"],
-    "conector":           ["CONECTOR", "FITTING", "ENCAIXE", "COTOVELO", "CURVA", "TE ", "REDUÇÃO"],
+    "flange_pescoço":     ["FLANGE", "FLANGE PESCOÇO", "FLANGE PESCOÇO DE SOLDA",
+                           "FLANGE SOLDA DE TOPO"],
+    "flange_encaixe":     ["FLANGE", "FLANGE ENCAIXE", "FLANGE DE ENCAIXE",
+                           "FLANGE SOCKET WELD"],
+    # ── Juntas / gaxetas ──────────────────────────────────────────────────────
     "junta_vedacao":      ["JUNTA", "GAXETA", "VEDAÇÃO"],
+    "junta_espiralada":   ["JUNTA", "JUNTA ESPIRALADA", "GAXETA ESPIRALADA"],
+    # ── Parafusos / fixações ──────────────────────────────────────────────────
     "parafuso":           ["PARAFUSO", "PORCA", "ARRUELA"],
+    "parafuso_estojo":    ["PARAFUSO ESTOJO", "PARAFUSO", "PORCA"],
+    # ── Válvulas ──────────────────────────────────────────────────────────────
+    "valvula":            ["VÁLVULA", "VALVULA"],
+    "valvula_esfera":     ["VÁLVULA DE ESFERA", "VÁLVULA ESFERA", "VÁLVULA"],
+    # ── Conectores / fittings ─────────────────────────────────────────────────
+    "conector":           ["CONECTOR", "FITTING", "ENCAIXE", "COTOVELO", "CURVA", "TE ", "REDUÇÃO"],
+    "meia_luva":          ["MEIA LUVA", "MEIA-LUVA", "CONECTOR", "FITTING"],
+    "tee_reto":           ["TEE", "TE ", "ACESSÓRIO DE TUBULAÇÃO", "FITTING"],
+    # ── Tampões ───────────────────────────────────────────────────────────────
+    "tampao":             ["TAMPÃO", "PLUGUE", "ENCAIXE"],
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -64,6 +87,65 @@ TIPO_MATERIAL_TO_CATEGORIA_HINTS: dict[str, list[str]] = {
 # ─────────────────────────────────────────────────────────────────────────────
 
 RE_NPS = re.compile(r'(\d+(?:[.,]\d+)?)\s*(?:"|\'\'|polegadas?|in\b)', re.IGNORECASE)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Mapa de canonicalização de tipo_material
+# LLMs retornam texto livre; este mapa normaliza para as chaves do dicionário
+# TIPO_MATERIAL_TO_CATEGORIA_HINTS acima.
+# None = sem filtro de categoria (busca em todo o catálogo)
+# ─────────────────────────────────────────────────────────────────────────────
+_TIPO_CANONICAL: dict[str, str | None] = {
+    # tubos
+    "tubo": "tubo_conducao", "tubulação": "tubo_conducao",
+    "tubo de condução": "tubo_conducao", "tubo condução": "tubo_conducao",
+    "tubo carbono": "tubo_conducao", "tubo inox": "tubo_conducao",
+    # flanges
+    "flange pescoço": "flange_pescoço", "flange pescoço de solda": "flange_pescoço",
+    "flange solda de topo": "flange_pescoço",
+    "flange encaixe": "flange_encaixe", "flange de encaixe": "flange_encaixe",
+    "flange socket weld": "flange_encaixe",
+    "flange": "flanges",
+    # juntas
+    "junta espiralada": "junta_espiralada", "junta vedação": "junta_vedacao",
+    "junta": "junta_espiralada", "gaxeta": "junta_espiralada",
+    # parafusos
+    "parafuso estojo": "parafuso_estojo", "parafuso": "parafuso_estojo",
+    "porca": "parafuso_estojo", "arruela": "parafuso_estojo",
+    # válvulas
+    "válvula esfera": "valvula_esfera", "valvula esfera": "valvula_esfera",
+    "válvula de esfera": "valvula_esfera",
+    "válvula": "valvula", "valvula": "valvula",
+    # fittings
+    "meia-luva": "meia_luva", "meia luva": "meia_luva",
+    "tee": "tee_reto", "te reto": "tee_reto", "tee reto": "tee_reto",
+    "tampão": "tampao", "tampao": "tampao", "plugue": "tampao",
+    # eletrodos
+    "eletrodo": "eletrodo_smaw", "eletrodo revestido": "eletrodo_revestido",
+    "consumível de soldagem": "eletrodo_smaw",
+    # END
+    "consumível end": "consumivel_end", "liquido penetrante": "consumivel_end",
+    "líquido penetrante": "consumivel_end",
+    # tipos sem categoria definida (busca sem filtro)
+    "conexão universal": None, "conexao universal": None,
+    "distribuidor": None, "distribuidor de fluxo": None,
+}
+
+
+def _normalize_tipo_material(tipo: str) -> str | None:
+    """
+    Normaliza tipo_material livre do LLM para a chave canônica do catálogo.
+    Retorna None se tipo não tiver hint de categoria (busca sem filtro).
+    Retorna o próprio tipo se não houver mapeamento (usa como fallback).
+    """
+    tipo_lower = tipo.lower().strip()
+    # Busca match exato primeiro
+    if tipo_lower in _TIPO_CANONICAL:
+        return _TIPO_CANONICAL[tipo_lower]
+    # Busca match parcial (início da string)
+    for key, val in _TIPO_CANONICAL.items():
+        if tipo_lower.startswith(key) or key in tipo_lower:
+            return val
+    return tipo  # mantém original se não encontrar
 
 
 def _extract_nps(text: str) -> str:
@@ -80,8 +162,9 @@ def _build_catalog_query(spec: EspecificacaoMaterial) -> str:
     """
     parts: list[str] = []
 
-    # Categoria inferida do tipo_material
-    categoria_hints = TIPO_MATERIAL_TO_CATEGORIA_HINTS.get(spec.tipo_material, [])
+    # Normaliza tipo_material (LLM pode retornar texto livre)
+    tipo_canonical = _normalize_tipo_material(spec.tipo_material or "")
+    categoria_hints = TIPO_MATERIAL_TO_CATEGORIA_HINTS.get(tipo_canonical or "", [])
     if categoria_hints:
         parts.append(f"CATEGORIA: {categoria_hints[0]}")
 
@@ -114,7 +197,10 @@ def _build_qdrant_filter(spec: EspecificacaoMaterial) -> Optional[Filter]:
     """
     from qdrant_client.models import Filter, FieldCondition, MatchAny
 
-    categoria_hints = TIPO_MATERIAL_TO_CATEGORIA_HINTS.get(spec.tipo_material, [])
+    tipo_canonical = _normalize_tipo_material(spec.tipo_material or "")
+    if tipo_canonical is None:
+        return None  # tipo explicitamente sem categoria → busca sem filtro
+    categoria_hints = TIPO_MATERIAL_TO_CATEGORIA_HINTS.get(tipo_canonical, [])
     if not categoria_hints:
         return None  # sem filtro → busca em todo o catálogo
 
@@ -313,10 +399,18 @@ class MateriaisMappingAgent:
         query = _build_catalog_query(spec)
         candidates = self._search_catalog(query, spec)
 
+        tipo_canonical = _normalize_tipo_material(spec.tipo_material or "")
+        categoria_base = ""
+        if tipo_canonical:
+            hints = TIPO_MATERIAL_TO_CATEGORIA_HINTS.get(tipo_canonical, [])
+            categoria_base = hints[0] if hints else spec.tipo_material
+        else:
+            categoria_base = spec.tipo_material or ""
+
         base_item = CatalogItemMatch(
             requisito_origem=spec.descricao_tecnica,
             descricao_catalogo=spec.descricao_tecnica,
-            categoria_catalogo=TIPO_MATERIAL_TO_CATEGORIA_HINTS.get(spec.tipo_material, [""])[0] or spec.tipo_material,
+            categoria_catalogo=categoria_base,
             source_file="",
             score_similaridade=0.0,
             mapeamento_status="unmapped",
